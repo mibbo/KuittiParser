@@ -9,6 +9,7 @@ namespace KuittiParser
 {
     internal class ProductModel
     {
+        public string Id{ get; set; }
         public string Name { get; set; }
         private decimal costField;
         public decimal Cost
