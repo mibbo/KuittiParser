@@ -11,6 +11,7 @@ namespace KuittiParser
     {
         public string Id{ get; set; }
         public string Name { get; set; }
+        public HashSet<string> Payers { get; set; }
         private decimal costField;
         public decimal Cost
         {
@@ -20,11 +21,6 @@ namespace KuittiParser
             }
             set
             {
-                //if (this.costField < 0)
-                //{
-                //    this.costField = this.costField - value;
-
-                //}
                 this.costField += value;
             }
         }
