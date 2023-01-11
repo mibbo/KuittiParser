@@ -3,9 +3,11 @@ using KuittiParser;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 
@@ -13,10 +15,12 @@ using UglyToad.PdfPig.Content;
 internal class Program
 {
     //private static Dictionary<string, Product> ParseProductsFromReceipt(string path)
-    private static List<Product> ParseProductsFromReceipt(string path)
+    private static Receipt ParseProductsFromReceipt(string path)
     {
         Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
-        
+        var receipt = new Receipt();
+        // TODO: Add receipt metadata while parsing it (Shop name, 
+
         using (PdfDocument document = PdfDocument.Open(path))
         {
             foreach (Page page in document.GetPages())
@@ -75,32 +79,35 @@ internal class Program
                 }
             }
         }
-        return productDictionary.Select(p => p.Value).ToList();
+        receipt.Products = productDictionary.Select(p => p.Value).ToList();
+        return receipt;
     }
 
     private static void Main(string[] args)
     {
-        var productDictionary = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\testikuitti.pdf");
-
-        //var payersDictionary = new Dictionary<string, List<Product>>();
+        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\testikuitti.pdf");
+        var groupedReceipt = receipt;
         var payersDictionaryGrouped = new Dictionary<string, Payer>();
         var payersDictionary = new Dictionary<string, Payer>();
 
-        foreach (var product in productDictionary)
+        foreach (var product in receipt.Products)
         {
             Console.WriteLine(product.Name + " - " + product.Cost);
             Console.WriteLine("Maksajat: ");
             string payer = Console.ReadLine().ToLower().Trim();
+
+           // TODO: var validity = CheckInputValidity(payer); Palautta mahdollinen virhe käyttäjälle
+
             if (string.IsNullOrEmpty(payer))
             {
                 payer = "all";
             }
 
             // Create grouped payer dictionary
-            AddProductToPayer(payersDictionaryGrouped, payer, product);
+            AddProductToPayer(payersDictionaryGrouped, payer, product, groupedReceipt);
 
 
-            // if there is multiple payers split 
+            // Split expenses to multiple payers
             if (payer.Contains(','))
             {
                 var multiplePayers = payer.Split(',').Select(p => p.Trim()).ToList();
@@ -112,75 +119,73 @@ internal class Program
 
                 foreach (var singlePayer in multiplePayers)
                 {
-                    AddProductToPayer(payersDictionary, singlePayer, product);
+                    AddProductToPayer(payersDictionary, singlePayer, product, receipt);
                 }
                 payersDictionary.Remove(payer);
             }
             else if (payer == "all")
             {
-                AddProductToPayer(payersDictionary, payer, product);
+                AddProductToPayer(payersDictionary, payer, product, receipt);
             }
             else
             {
-                AddProductToPayer(payersDictionary, payer, product);
+                AddProductToPayer(payersDictionary, payer, product, receipt);
             }
-
-            //            if (payer.Key.Contains(','))
-            //            {
-            //                var multiplePayers = payer.Key.Split(',').Select(p => p.Trim()).ToList();
-            //                var divider = multiplePayers.Count;
-
-            //                var costDivided = payer.Value / divider;
-
-            //                foreach (var singlePayer in multiplePayers)
-            //                {
-            //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer, costDivided);
-            //                }
-            //                groupCostsDividedDict.Remove(payer.Key);
-            //            }
-            //            else if (payer.Key.Contains("all"))
-            //            {
-            //                var allPayers = groupCostsDividedDict.Where(p => p.Key != "all").ToList();
-            //                var divider = allPayers.Count;
-            //                var costDivided = payer.Value / divider;
-
-            //                foreach (var singlePayer in allPayers)
-            //                {
-            //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer.Key, costDivided);
-            //                }
-            //                groupCostsDividedDict.Remove(payer.Key);
-            //            }
-            //AddProductToPayersDict(payersDictionary, payers, product.Value);
         }
 
 
-        decimal totalCost = 0;
-        foreach (var p in payersDictionaryGrouped.OrderByDescending(x => x.Value.GetProductCost()).ToDictionary(x => x.Key, x => x.Value))
+        // Split expenses that belong to every payer
+        receipt.Payers = payersDictionary.Where(l => l.Key != "all").Select(payer => payer.Value).ToList();
+        foreach (var product in payersDictionary["all"].Products)
         {
-            Console.WriteLine($"{p.Key}: {p.Value.GetProductCost()}");
-            totalCost += p.Value.GetProductCost();
-        }
-        Console.WriteLine($"Yhteensä: {totalCost}");
+            var divider = receipt.Payers.Count;
 
-        Console.WriteLine($"");
-        Console.WriteLine($"");
-
-        totalCost = 0;
-        foreach (var p in payersDictionary.OrderByDescending(x => x.Value.GetPersonalCost()).ToDictionary(x => x.Key, x => x.Value))
-        {
-            Console.WriteLine($"{p.Key}: {p.Value.GetPersonalCost()}");
-            totalCost += p.Value.GetPersonalCost();
-
-            foreach(var product in p.Value.Products)
+            foreach(var payer in receipt.Payers)
             {
-                Console.WriteLine($" - {product.DividedCost ?? product.Cost}: {product.Name}");
+                var costDivided = product.Cost / divider;
+                product.DividedCost = costDivided;
+                AddProductToPayer(payersDictionary, payer.Name, product, receipt);
             }
         }
-        Console.WriteLine($"Yhteensä: {totalCost}");
+        var payersAmount = receipt.Payers.Count;
+        payersDictionary.Remove("all");
+
+
+
+        // Print end results
+        Console.WriteLine($"");
+        PrintReceipt(payersDictionaryGrouped);
+        PrintReceipt(payersDictionary, true);
+
+        foreach(var payer in receipt.Payers)
+        {
+            Console.WriteLine(payer.Name);
+        }
     }
 
+    private static void PrintReceipt(Dictionary<string, Payer> payersDict, bool printExtended = false)
+    {
+        Console.WriteLine($"");
+        Console.WriteLine(printExtended ? "Yksittäiset kustannukset:" : "Ryhmittäiset kustannukset:");
+        decimal totalCost = 0;
+        foreach (var p in payersDict.OrderByDescending(x => (printExtended ? x.Value.GetPersonalCost() : x.Value.GetProductCost())).ToDictionary(x => x.Key, x => x.Value))
+        {
+            Console.WriteLine($"{p.Key}: {(printExtended? p.Value.GetPersonalCost() : p.Value.GetProductCost())}");
+            totalCost += (printExtended ? p.Value.GetPersonalCost() : p.Value.GetProductCost());
 
-    private static void AddProductToPayer(Dictionary<string, Payer> payersDict, string payer, Product product)
+            if (printExtended)
+            {
+                foreach (var product in p.Value.Products)
+                {
+                    Console.WriteLine($" - {product.DividedCost ?? product.Cost}: {product.Name}");
+                }
+            }
+        }
+        Console.WriteLine($"Yhteensä: {totalCost}");
+        Console.WriteLine($"");
+    }
+
+    private static void AddProductToPayer(Dictionary<string, Payer> payersDict, string payer, Product product, Receipt receipt)
     {
         if (payersDict.ContainsKey(payer))
         {

@@ -11,7 +11,8 @@ namespace KuittiParser
     {
         public string Name { get; set; }
         public string Description { get; set; }
-
+        public List<Product> Products { get; set; }
+        public List<Payer> Payers { get; set; }
     }
 
     internal class Payer
