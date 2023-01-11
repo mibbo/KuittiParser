@@ -12,9 +12,10 @@ using UglyToad.PdfPig.Content;
 
 internal class Program
 {
-    private static Dictionary<string, ProductModel> ParseProductsFromReceipt(string path)
+    //private static Dictionary<string, Product> ParseProductsFromReceipt(string path)
+    private static List<Product> ParseProductsFromReceipt(string path)
     {
-        Dictionary<string, ProductModel> productDictionary = new Dictionary<string, ProductModel>();
+        Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
         
         using (PdfDocument document = PdfDocument.Open(path))
         {
@@ -26,7 +27,7 @@ internal class Program
                 List<List<Word>> rowList = wordList.GroupBy(it => it.BoundingBox.Bottom).Select(grp => grp.ToList()).ToList();
                 //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
-                var previousProduct = new ProductModel();
+                var previousProduct = new Product();
 
                 // Dictionary for products to be added
 
@@ -62,12 +63,11 @@ internal class Program
                         continue;
                     }
 
-                    var product = new ProductModel
+                    var product = new Product
                     {
                         Id = Guid.NewGuid().ToString(),
                         Name = string.Join(" ", words.SkipLast(1)),
-                        Cost = decimal.Parse(words.Last()),
-                        Payers = new HashSet<string>()
+                        Cost = decimal.Parse(words.Last())
                     };
                     productDictionary.Add(product.Id, product);
 
@@ -75,96 +75,205 @@ internal class Program
                 }
             }
         }
-        return productDictionary;
+        return productDictionary.Select(p => p.Value).ToList();
     }
 
     private static void Main(string[] args)
     {
         var productDictionary = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\testikuitti.pdf");
 
-        var payersDictionary = new Dictionary<string, decimal>();
+        //var payersDictionary = new Dictionary<string, List<Product>>();
+        var payersDictionaryGrouped = new Dictionary<string, Payer>();
+        var payersDictionary = new Dictionary<string, Payer>();
 
         foreach (var product in productDictionary)
         {
-            Console.WriteLine(product.Value.Name + " - " + product.Value.Cost);
+            Console.WriteLine(product.Name + " - " + product.Cost);
             Console.WriteLine("Maksajat: ");
-            string payers = Console.ReadLine().ToLower();
-            if (string.IsNullOrEmpty(payers))
+            string payer = Console.ReadLine().ToLower().Trim();
+            if (string.IsNullOrEmpty(payer))
             {
-                payers = "all";
+                payer = "all";
             }
-            productDictionary[product.Value.Id].Payers.Add(payers);
-            AddCostToPayersDict(payersDictionary, payers, product.Value.Cost);
-        }
 
-        Console.WriteLine("Maksajat ryhmittäin:");
-        decimal totalCost = 0;
-        foreach (var payer in payersDictionary.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value))
-        {
-            Console.WriteLine($"{payer.Key}: {payer.Value}");
-            totalCost = totalCost + payer.Value;
-        }
-        Console.WriteLine($"Yhteensä: {totalCost}");
-        Console.WriteLine("");
-        totalCost = 0;
-        Console.WriteLine("Maksajat yksittäin:");
-        var payersCostsDivided = DivideGroupCosts(payersDictionary);
-        foreach (var payer in payersCostsDivided.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value))
-        {
-            Console.WriteLine($"{payer.Key}: {payer.Value}");
-            totalCost = totalCost + payer.Value;
-        }
-        Console.WriteLine($"Yhteensä: {totalCost}");
-    }
+            // Create grouped payer dictionary
+            AddProductToPayer(payersDictionaryGrouped, payer, product);
 
-    // Jakaa ryhmittäiset kustannukset tommi,mauri 10,00 => tommi 5,00 ja mauri 5,00)
-    // palauttaa uuden jaotellun dictin
-    private static Dictionary<string, decimal> DivideGroupCosts(Dictionary<string, decimal> payersDict)
-    {
-        var groupCostsDividedDict = payersDict;
 
-        foreach (var payer in payersDict.ToList())
-        {
-            if (payer.Key.Contains(','))
+            // if there is multiple payers split 
+            if (payer.Contains(','))
             {
-                var multiplePayers = payer.Key.Split(',').Select(p => p.Trim()).ToList();
+                var multiplePayers = payer.Split(',').Select(p => p.Trim()).ToList();
                 var divider = multiplePayers.Count;
 
-                var costDivided = payer.Value / divider;
+                var costDivided = product.Cost / divider;
+
+                product.DividedCost = costDivided;      // TODO: Jaa kulut niin, että ei jaa senttejä (eli lisää jollekin sentin jos ei mene tasa)
 
                 foreach (var singlePayer in multiplePayers)
                 {
-                    AddCostToPayersDict(groupCostsDividedDict, singlePayer, costDivided);
+                    AddProductToPayer(payersDictionary, singlePayer, product);
                 }
-                groupCostsDividedDict.Remove(payer.Key);
+                payersDictionary.Remove(payer);
             }
-            else if (payer.Key.Contains("all"))
+            else if (payer == "all")
             {
-                var allPayers = groupCostsDividedDict.Where(p => p.Key != "all").ToList();
-                var divider = allPayers.Count;
-                var costDivided = payer.Value / divider;
+                AddProductToPayer(payersDictionary, payer, product);
+            }
+            else
+            {
+                AddProductToPayer(payersDictionary, payer, product);
+            }
 
-                foreach (var singlePayer in allPayers)
-                {
-                    AddCostToPayersDict(groupCostsDividedDict, singlePayer.Key, costDivided);
-                }
-                groupCostsDividedDict.Remove(payer.Key);
+            //            if (payer.Key.Contains(','))
+            //            {
+            //                var multiplePayers = payer.Key.Split(',').Select(p => p.Trim()).ToList();
+            //                var divider = multiplePayers.Count;
+
+            //                var costDivided = payer.Value / divider;
+
+            //                foreach (var singlePayer in multiplePayers)
+            //                {
+            //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer, costDivided);
+            //                }
+            //                groupCostsDividedDict.Remove(payer.Key);
+            //            }
+            //            else if (payer.Key.Contains("all"))
+            //            {
+            //                var allPayers = groupCostsDividedDict.Where(p => p.Key != "all").ToList();
+            //                var divider = allPayers.Count;
+            //                var costDivided = payer.Value / divider;
+
+            //                foreach (var singlePayer in allPayers)
+            //                {
+            //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer.Key, costDivided);
+            //                }
+            //                groupCostsDividedDict.Remove(payer.Key);
+            //            }
+            //AddProductToPayersDict(payersDictionary, payers, product.Value);
+        }
+
+
+        decimal totalCost = 0;
+        foreach (var p in payersDictionaryGrouped.OrderByDescending(x => x.Value.GetProductCost()).ToDictionary(x => x.Key, x => x.Value))
+        {
+            Console.WriteLine($"{p.Key}: {p.Value.GetProductCost()}");
+            totalCost += p.Value.GetProductCost();
+        }
+        Console.WriteLine($"Yhteensä: {totalCost}");
+
+        Console.WriteLine($"");
+        Console.WriteLine($"");
+
+        totalCost = 0;
+        foreach (var p in payersDictionary.OrderByDescending(x => x.Value.GetPersonalCost()).ToDictionary(x => x.Key, x => x.Value))
+        {
+            Console.WriteLine($"{p.Key}: {p.Value.GetPersonalCost()}");
+            totalCost += p.Value.GetPersonalCost();
+
+            foreach(var product in p.Value.Products)
+            {
+                Console.WriteLine($" - {product.DividedCost ?? product.Cost}: {product.Name}");
             }
         }
-        return groupCostsDividedDict;
+        Console.WriteLine($"Yhteensä: {totalCost}");
     }
 
-    private static void AddCostToPayersDict(Dictionary<string, decimal> payersDict, string payers, decimal productCost)
+
+    private static void AddProductToPayer(Dictionary<string, Payer> payersDict, string payer, Product product)
     {
-        
-        if (payersDict.ContainsKey(payers))
+        if (payersDict.ContainsKey(payer))
         {
-            var newAllCost = payersDict[payers] + productCost;
-            payersDict[payers] = newAllCost;
+            payersDict[payer].Products.Add(product);
         }
         else
         {
-            payersDict.Add(payers, productCost);
+            var newProduct = product;
+            var newPayer = new Payer
+            {
+                Name = payer,
+                Products = new List<Product> { newProduct }
+            };
+            payersDict.Add(payer, newPayer);
         }
     }
+
+    //        Console.WriteLine("Maksajat ryhmittäin:");
+    //        decimal totalCost = 0;
+    //        foreach (var payer in payersDictionary.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value))
+    //        {
+    //            Console.WriteLine($"{payer.Key}: {payer.Value}");
+    //            totalCost = totalCost + payer.Value;
+    //        }
+    //        Console.WriteLine($"Yhteensä: {totalCost}");
+
+
+
+
+
+
+
+
+    //        Console.WriteLine("");
+    //        totalCost = 0;
+    //        Console.WriteLine("Maksajat yksittäin:");
+    //        var payersCostsDivided = DivideGroupCosts(payersDictionary);
+    //        foreach (var payer in payersCostsDivided.OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value))
+    //        {
+    //            Console.WriteLine($"{payer.Key}: {payer.Value}");
+    //            totalCost = totalCost + payer.Value;
+    //        }
+    //        Console.WriteLine($"Yhteensä: {totalCost}");
+    //    }
+
+    //    // Jakaa ryhmittäiset kustannukset tommi,mauri 10,00 => tommi 5,00 ja mauri 5,00)
+    //    // palauttaa uuden jaotellun dictin
+    //    private static Dictionary<string, decimal> DivideGroupCosts(Dictionary<string, decimal> payersDict)
+    //    {
+    //        var groupCostsDividedDict = payersDict;
+
+    //        foreach (var payer in payersDict.ToList())
+    //        {
+    //            if (payer.Key.Contains(','))
+    //            {
+    //                var multiplePayers = payer.Key.Split(',').Select(p => p.Trim()).ToList();
+    //                var divider = multiplePayers.Count;
+
+    //                var costDivided = payer.Value / divider;
+
+    //                foreach (var singlePayer in multiplePayers)
+    //                {
+    //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer, costDivided);
+    //                }
+    //                groupCostsDividedDict.Remove(payer.Key);
+    //            }
+    //            else if (payer.Key.Contains("all"))
+    //            {
+    //                var allPayers = groupCostsDividedDict.Where(p => p.Key != "all").ToList();
+    //                var divider = allPayers.Count;
+    //                var costDivided = payer.Value / divider;
+
+    //                foreach (var singlePayer in allPayers)
+    //                {
+    //                    AddProductToPayersDict(groupCostsDividedDict, singlePayer.Key, costDivided);
+    //                }
+    //                groupCostsDividedDict.Remove(payer.Key);
+    //            }
+    //        }
+    //        return groupCostsDividedDict;
+    //    }
+
+    //    private static void AddProductToPayersDict(Dictionary<string, List<Product>> payersDict, string payers, Product product)
+    //    {
+
+    //        if (payersDict.ContainsKey(payers))
+    //        {
+    //            var newAllCost = payersDict[payers] + product;
+    //            payersDict[payers] = newAllCost;
+    //        }
+    //        else
+    //        {
+    //            payersDict.Add(payers, product);
+    //        }
+    //}
 }
