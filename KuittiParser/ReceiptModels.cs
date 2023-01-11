@@ -26,7 +26,7 @@ namespace KuittiParser
             {
                 totalCost += product.Cost;
             }
-            return totalCost;
+            return decimal.Round(totalCost, 2, MidpointRounding.AwayFromZero);
         }
         public decimal GetPersonalCost()
         {
@@ -35,7 +35,7 @@ namespace KuittiParser
             {
                 totalCost += product.DividedCost ?? product.Cost;
             }
-            return totalCost;
+            return decimal.Round(totalCost, 2, MidpointRounding.AwayFromZero);
         }
     }
 

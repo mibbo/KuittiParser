@@ -14,6 +14,11 @@ using UglyToad.PdfPig.Content;
 
 internal class Program
 {
+    //TODO:
+    //- Lopuks input että onko muita osallistujia, jotka osallistuu vain "all" kustannuksiin
+    //- printtaa aina kappalemäärän jos ostettu useampi
+    //	-> halutaanko jakaa osiin?
+
     //private static Dictionary<string, Product> ParseProductsFromReceipt(string path)
     private static Receipt ParseProductsFromReceipt(string path)
     {
@@ -46,8 +51,8 @@ internal class Program
                         break;
                     }
 
-                    // Skip rows that are not product rows
-                    if (rowWords.Last().BoundingBox.Left != 192.62890625)
+                    // Skip rows that are not product rows  
+                    if (rowWords.Last().Letters.Last().StartBaseLine.X != 207.03125)
                         continue;
 
                     var currentRowCost = words.Last();
@@ -85,7 +90,7 @@ internal class Program
 
     private static void Main(string[] args)
     {
-        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\testikuitti.pdf");
+        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\maukan_kuitti.pdf");
         var groupedReceipt = receipt;
         var payersDictionaryGrouped = new Dictionary<string, Payer>();
         var payersDictionary = new Dictionary<string, Payer>();
@@ -135,20 +140,35 @@ internal class Program
 
 
         // Split expenses that belong to every payer
-        receipt.Payers = payersDictionary.Where(l => l.Key != "all").Select(payer => payer.Value).ToList();
-        foreach (var product in payersDictionary["all"].Products)
+        if (payersDictionary.ContainsKey("all"))
         {
-            var divider = receipt.Payers.Count;
-
-            foreach(var payer in receipt.Payers)
+            Console.WriteLine("Onko muita maksajia yhteisiin ostoksiin?");
+            var additionalPayers = Console.ReadLine().Trim().Split(',').ToList();
+            if (additionalPayers.Count > 0)
             {
-                var costDivided = product.Cost / divider;
-                product.DividedCost = costDivided;
-                AddProductToPayer(payersDictionary, payer.Name, product, receipt);
+                foreach (var payer in additionalPayers)
+                {
+                    payersDictionary.Add(payer, new Payer { Name = payer, Products = new List<Product>() });
+                }
+
+                receipt.Payers = payersDictionary.Where(l => l.Key != "all").Select(payer => payer.Value).ToList();
+                foreach (var product in payersDictionary["all"].Products)
+                {
+                    var divider = receipt.Payers.Count;
+
+                    foreach (var payer in receipt.Payers)
+                    {
+                        var costDivided = product.Cost / divider;
+                        product.DividedCost = costDivided;
+                        AddProductToPayer(payersDictionary, payer.Name, product, receipt);
+                    }
+                }
+                var payersAmount = receipt.Payers.Count;
+                payersDictionary.Remove("all");
             }
+
         }
-        var payersAmount = receipt.Payers.Count;
-        payersDictionary.Remove("all");
+
 
 
 
