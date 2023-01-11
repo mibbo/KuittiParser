@@ -200,7 +200,8 @@ internal class Program
             {
                 foreach (var product in p.Value.Products)
                 {
-                    Console.WriteLine($" - {product.DividedCost ?? product.Cost}: {product.Name}");
+                    var printableCost = product.DividedCost ?? product.Cost;
+                    Console.WriteLine($" - {decimal.Round(printableCost, 2, MidpointRounding.AwayFromZero)}: {product.Name}");  //printableCost:0.00
                 }
             }
         }
