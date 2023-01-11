@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -51,8 +52,10 @@ internal class Program
                         break;
                     }
 
-                    // Skip rows that are not product rows  
-                    if (rowWords.Last().Letters.Last().StartBaseLine.X != 207.03125)
+                    // Skip rows that are not product rows
+                    if (rowWords.Last().Text == "----------")
+                        continue;
+                    if (rowWords.Last().Letters.Where(l => l.Value != "-").ToList().Last().StartBaseLine.X != 207.03125)
                         continue;
 
                     var currentRowCost = words.Last();
