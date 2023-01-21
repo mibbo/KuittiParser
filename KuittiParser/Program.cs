@@ -11,23 +11,28 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
-
+using Telegram.Bot;
+using Microsoft.Extensions.Configuration;
+using Telegram.Bot.Exceptions;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types;
 
 internal class Program
 {
+
     //TODO:
-    //- Lopuks input että onko muita osallistujia, jotka osallistuu vain "all" kustannuksiin
     //- printtaa aina kappalemäärän jos ostettu useampi
     //	-> halutaanko jakaa osiin?
 
     //private static Dictionary<string, Product> ParseProductsFromReceipt(string path)
-    private static Receipt ParseProductsFromReceipt(string path)
+    private static Receipt ParseProductsFromReceipt(Document receiptDocument)
     {
         Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
         var receipt = new Receipt();
         // TODO: Add receipt metadata while parsing it (Shop name, 
 
-        using (PdfDocument document = PdfDocument.Open(path))
+        using (PdfDocument document = PdfDocument.Open(receiptDocument.FileId))
         {
             foreach (Page page in document.GetPages())
             {
@@ -91,7 +96,96 @@ internal class Program
         return receipt;
     }
 
-    private static void Main(string[] args)
+    private static async Task Main(string[] args)
+    {
+        var config = new ConfigurationBuilder()
+                .AddUserSecrets<Program>()
+                .Build();
+
+        string tgtoken = config["tgtoken"];
+
+        var botClient = new TelegramBotClient(tgtoken);
+
+        using CancellationTokenSource cts = new();
+
+        // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
+        ReceiverOptions receiverOptions = new()
+        {
+            AllowedUpdates = Array.Empty<UpdateType>() // receive all update types
+        };
+
+        botClient.StartReceiving(
+            updateHandler: HandleUpdateAsync,
+            pollingErrorHandler: HandlePollingErrorAsync,
+            receiverOptions: receiverOptions,
+            cancellationToken: cts.Token
+        );
+
+        var me = await botClient.GetMeAsync();
+
+        Console.WriteLine($"Start listening for @{me.Username}");
+        Console.ReadLine();
+
+        // Send cancellation request to stop bot
+        cts.Cancel();
+
+        async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            // Only process Message updates: https://core.telegram.org/bots/api#message
+            if (update.Message is not { } message)
+                return;
+
+            if (message.Document != null)
+            {
+                if (message.Document.MimeType == "application/pdf")
+                {
+                    var fileId = message.Document.FileId;
+                    var fileInfo = await botClient.GetFileAsync(fileId);
+                    var filePath = fileInfo.FilePath;
+                    const string destinationFilePath = "../downloaded.file";
+
+                    await using Stream fileStream = System.IO.File.OpenWrite(destinationFilePath);
+
+                    var file = await botClient.GetInfoAndDownloadFileAsync(
+                        fileId: fileId,
+                        destination: fileStream,
+                        cancellationToken: cancellationToken);
+
+                    Receipt receipt = ParseProductsFromReceipt(message.Document);
+                    var asd = await BeginParsingReceipt(botClient, cancellationToken);
+                }
+            }
+
+            // Only process text messages
+            if (message.Text is not { } messageText)
+                return;
+
+            var chatId = message.Chat.Id;
+
+            Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+
+            // Echo received message text
+            Message sentMessage = await botClient.SendTextMessageAsync(
+                chatId: chatId,
+                text: "You said:\n" + messageText,
+                cancellationToken: cancellationToken);
+        }
+
+        Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+        {
+            var ErrorMessage = exception switch
+            {
+                ApiRequestException apiRequestException
+                    => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
+                _ => exception.ToString()
+            };
+
+            Console.WriteLine(ErrorMessage);
+            return Task.CompletedTask;
+        }
+    }
+
+    private async Task BeginParsingReceipt(ITelegramBotClient botClient, CancellationToken cancellationToken)
     {
         Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\maukan_kuitti.pdf");
         var groupedReceipt = receipt;
@@ -104,7 +198,7 @@ internal class Program
             Console.WriteLine("Maksajat: ");
             string payer = Console.ReadLine().ToLower().Trim();
 
-           // TODO: var validity = CheckInputValidity(payer); Palautta mahdollinen virhe käyttäjälle
+            // TODO: var validity = CheckInputValidity(payer); Palautta mahdollinen virhe käyttäjälle
 
             if (string.IsNullOrEmpty(payer))
             {
@@ -169,7 +263,6 @@ internal class Program
                 var payersAmount = receipt.Payers.Count;
                 payersDictionary.Remove("all");
             }
-
         }
 
 
@@ -180,13 +273,14 @@ internal class Program
         PrintReceipt(payersDictionaryGrouped);
         PrintReceipt(payersDictionary, true);
 
-        foreach(var payer in receipt.Payers)
+        foreach (var payer in receipt.Payers)
         {
             Console.WriteLine(payer.Name);
         }
+        return Task.CompletedTask;
     }
 
-    private static void PrintReceipt(Dictionary<string, Payer> payersDict, bool printExtended = false)
+        private static void PrintReceipt(Dictionary<string, Payer> payersDict, bool printExtended = false)
     {
         Console.WriteLine($"");
         Console.WriteLine(printExtended ? "Yksittäiset kustannukset:" : "Ryhmittäiset kustannukset:");
