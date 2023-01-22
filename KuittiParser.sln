@@ -5,7 +5,7 @@ VisualStudioVersion = 17.3.32811.315
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiBot.Functions", "KuittiBot.Functions\KuittiBot.Functions.csproj", "{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KuittiParses.Console", "KuittiParses.Console\KuittiParses.Console.csproj", "{2CFCDFCA-9122-4AC9-90EC-8AD0EBD018C3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiParses.Console", "KuittiParses.Console\KuittiParses.Console.csproj", "{2CFCDFCA-9122-4AC9-90EC-8AD0EBD018C3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

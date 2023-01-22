@@ -1,4 +1,8 @@
+using AzureTableDataStore;
 using KuittiBot.Functions;
+using KuittiBot.Functions.Domain.Abstractions;
+using KuittiBot.Functions.Domain.Models;
+using KuittiBot.Functions.Infrastructure;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +35,30 @@ namespace KuittiBot.Functions
 
             // Dummy business-logic service
             builder.Services.AddScoped<UpdateService>();
+
+            // Tablestorage
+            builder.Services.AddSingleton<IUserDataCache, UserDataCache>();
+            builder.Services.AddSingleton<ITableDataStore<UserDataCacheEntity>, TableDataStore<UserDataCacheEntity>>(sp =>
+                new TableDataStore<UserDataCacheEntity>(
+                Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
+                "userdatacache",
+                true,
+                "userdatacache",
+                true,
+                Azure.Storage.Blobs.Models.PublicAccessType.None,
+                partitionKeyProperty: nameof(UserDataCacheEntity.Id),
+                rowKeyProperty: nameof(UserDataCacheEntity.FileName))
+            );
+
+            // TODO blobstorage
+            //builder.Services.AddTransient<IStorage<SendPurchaseOrders.RecipeStorage>,
+            //    BlobStorage<SendPurchaseOrders.RecipeStorage>>());
+            //builder.Services.Configure<BlobStorageConfiguration<SendPurchaseOrders.ArchiveStorage>>(config =>
+            //{
+            //    config.ConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process);
+            //    config.ContainerName = "recipecache";
+            //    config.CreateContainer = true;
+            //});
         }
     }
 }

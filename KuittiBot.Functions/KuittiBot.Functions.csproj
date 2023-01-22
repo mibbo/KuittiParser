@@ -7,7 +7,9 @@
 	<UserSecretsId>77889566-9449-458a-9cb8-45ff1384bf49</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AzureTableDataStore" Version="1.0.3" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
 	<PackageReference Include="PdfPig" Version="0.1.7" />
 	<PackageReference Include="System.Collections" Version="4.3.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
@@ -24,5 +26,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Services\" />
   </ItemGroup>
 </Project>

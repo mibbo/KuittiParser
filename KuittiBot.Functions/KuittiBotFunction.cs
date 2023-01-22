@@ -1,3 +1,6 @@
+using Azure.Storage.Blobs;
+using KuittiBot.Functions.Domain.Abstractions;
+using KuittiBot.Functions.Domain.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -20,19 +23,24 @@ namespace KuittiBot.Functions
     public class KuittiBotFunction
     {
         private readonly UpdateService _updateService;
+        private IUserDataCache _userDataCache;
+        //private ILogger _logger;
 
-        public KuittiBotFunction(UpdateService updateService)
+        public KuittiBotFunction(UpdateService updateService, IUserDataCache userDataCache)
         {
             _updateService = updateService;
+            _userDataCache = userDataCache;
         }
 
 
         [FunctionName("KuittiBot")]
         public async Task<IActionResult> Update(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)]
-        HttpRequest request,
-            ILogger logger)
+            HttpRequest request,
+            ILogger logger
+            /*, CancellationToken token*/)
         {
+            //using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(token, request.HttpContext.RequestAborted);
             try
             {
                 var body = await request.ReadAsStringAsync();
@@ -43,7 +51,48 @@ namespace KuittiBot.Functions
                     return new OkResult();
                 }
 
-                await _updateService.EchoAsync(update);
+                if (update.Message.Type == MessageType.Document && update.Message.Document.MimeType == "application/pdf")
+                {
+                    await _updateService.InitializeParseingForUser(update);
+                }
+
+                var userId = update.Message.From.Id.ToString() /*?? update.CallbackQuery.From.Id.ToString()*/;
+
+                // get the latest fetch date time (previous fetch operation)
+                var userFromCache = await _userDataCache.GetUserById(userId);
+
+                if (userFromCache == null)
+                {
+                    var newUser = new UserDataCacheEntity()
+                    {
+                        Id = userId,
+                        FileName = "",
+                        UserName = update.Message.From.Username,
+                        Description = "",
+                        ProcessEnd = false
+                        //Payers = new List<string>()
+                    };
+
+                    await _userDataCache.InsertAsync(newUser);
+                    logger.LogInformation($"Inserted user '{newUser.UserName}'");
+                        userFromCache = newUser;
+                    await _updateService.WelcomeUser(update);
+                    return new OkResult();
+                };
+
+                //if (!update.Message)
+
+
+
+                //if (!(update.CallbackQuery is { } callbackQuery))
+                //{
+                //    await _updateService.EchoAsync(update);
+                //};
+
+                await _updateService.SayHello(update);
+
+
+
             }
 #pragma warning disable CA1031
             catch (Exception e)
