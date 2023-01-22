@@ -3,11 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.3.32811.315
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiParser", "KuittiParser\KuittiParser.csproj", "{1C96E3A5-8674-4C45-A5A3-8161ECE45D79}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KuittiBot.Api", "KuittiBot.Api\KuittiBot.Api.csproj", "{B2CED4F5-2AF8-4023-8093-9E5DCA1F31F1}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KuittiBot.Functions", "KuittiBot.Functions\KuittiBot.Functions.csproj", "{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiBot.Functions", "KuittiBot.Functions\KuittiBot.Functions.csproj", "{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,14 +11,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1C96E3A5-8674-4C45-A5A3-8161ECE45D79}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1C96E3A5-8674-4C45-A5A3-8161ECE45D79}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1C96E3A5-8674-4C45-A5A3-8161ECE45D79}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1C96E3A5-8674-4C45-A5A3-8161ECE45D79}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B2CED4F5-2AF8-4023-8093-9E5DCA1F31F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B2CED4F5-2AF8-4023-8093-9E5DCA1F31F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B2CED4F5-2AF8-4023-8093-9E5DCA1F31F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B2CED4F5-2AF8-4023-8093-9E5DCA1F31F1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D62EEF14-F0DF-496D-A26C-44572CF2E7D8}.Release|Any CPU.ActiveCfg = Release|Any CPU

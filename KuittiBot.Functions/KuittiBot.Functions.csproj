@@ -4,11 +4,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+	<UserSecretsId>77889566-9449-458a-9cb8-45ff1384bf49</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.1.1" />
-	<PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="7.0.0" />
 	<PackageReference Include="PdfPig" Version="0.1.7" />
 	<PackageReference Include="System.Collections" Version="4.3.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
