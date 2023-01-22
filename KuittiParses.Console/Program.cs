@@ -1,5 +1,4 @@
-﻿
-using KuittiParser;
+﻿using KuittiParser;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -93,7 +92,7 @@ internal class Program
 
     private static void Main(string[] args)
     {
-        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParser\Kuitit\maukan_kuitti.pdf");
+        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\maukan_kuitti.pdf");
         var groupedReceipt = receipt;
         var payersDictionaryGrouped = new Dictionary<string, Payer>();
         var payersDictionary = new Dictionary<string, Payer>();
@@ -104,7 +103,7 @@ internal class Program
             Console.WriteLine("Maksajat: ");
             string payer = Console.ReadLine().ToLower().Trim();
 
-           // TODO: var validity = CheckInputValidity(payer); Palautta mahdollinen virhe käyttäjälle
+            // TODO: var validity = CheckInputValidity(payer); Palautta mahdollinen virhe käyttäjälle
 
             if (string.IsNullOrEmpty(payer))
             {
@@ -180,7 +179,7 @@ internal class Program
         PrintReceipt(payersDictionaryGrouped);
         PrintReceipt(payersDictionary, true);
 
-        foreach(var payer in receipt.Payers)
+        foreach (var payer in receipt.Payers)
         {
             Console.WriteLine(payer.Name);
         }
@@ -193,7 +192,7 @@ internal class Program
         decimal totalCost = 0;
         foreach (var p in payersDict.OrderByDescending(x => (printExtended ? x.Value.GetPersonalCost() : x.Value.GetProductCost())).ToDictionary(x => x.Key, x => x.Value))
         {
-            Console.WriteLine($"{p.Key}: {(printExtended? p.Value.GetPersonalCost() : p.Value.GetProductCost())}");
+            Console.WriteLine($"{p.Key}: {(printExtended ? p.Value.GetPersonalCost() : p.Value.GetProductCost())}");
             totalCost += (printExtended ? p.Value.GetPersonalCost() : p.Value.GetProductCost());
 
             if (printExtended)

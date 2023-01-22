@@ -31,7 +31,7 @@ namespace KuittiParser
         public decimal GetPersonalCost()
         {
             decimal totalCost = 0;
-            foreach(var product in Products)
+            foreach (var product in Products)
             {
                 totalCost += product.DividedCost ?? product.Cost;
             }
@@ -41,7 +41,7 @@ namespace KuittiParser
 
     internal class Product
     {
-        public string Id{ get; set; }
+        public string Id { get; set; }
         public string Name { get; set; }
         public decimal? DividedCost { get; set; }
         private decimal costField;
