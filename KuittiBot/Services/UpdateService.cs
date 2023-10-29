@@ -10,7 +10,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace KuittiBot.Functions
+namespace KuittiBot.Functions.Services
 {
     public class UpdateService
     {
@@ -98,7 +98,7 @@ namespace KuittiBot.Functions
 
 
             var userFromCache = await _userDataCache.GetUserById(message.From.Id.ToString());
-            
+
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,

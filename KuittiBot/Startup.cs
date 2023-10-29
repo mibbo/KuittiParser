@@ -1,8 +1,8 @@
 using AzureTableDataStore;
-using KuittiBot.Functions;
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
 using KuittiBot.Functions.Infrastructure;
+using KuittiBot.Functions.Services;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

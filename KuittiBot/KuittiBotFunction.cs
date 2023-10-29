@@ -1,6 +1,7 @@
 using Azure.Storage.Blobs;
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
+using KuittiBot.Functions.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ namespace KuittiBot.Functions
     {
         private readonly UpdateService _updateService;
         private IUserDataCache _userDataCache;
+        private readonly BotStateMachine _stateMachine = new BotStateMachine();
         //private ILogger _logger;
 
         public KuittiBotFunction(UpdateService updateService, IUserDataCache userDataCache)
@@ -45,6 +47,15 @@ namespace KuittiBot.Functions
             var update = JsonConvert.DeserializeObject<Update>(body); 
             try
             {
+                if (update != null)
+                {
+                    await _stateMachine.OnUpdate(update);
+                }
+
+                return new OkResult();
+
+                // Old implementation
+
 
                 if (update is null)
                 {
