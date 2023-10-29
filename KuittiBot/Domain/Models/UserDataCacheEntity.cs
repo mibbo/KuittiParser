@@ -16,7 +16,7 @@ namespace KuittiBot.Functions.Domain.Models
         public string UserName { get; set; }
         public string Description { get; set; }
         public string PayersRaw { get; set; }
-        public bool ProcessEnd { get; set; }
+        public BotState CurrentState { get; set; }
         //[IgnoreProperty]
         //public List<string> Payers
         //{

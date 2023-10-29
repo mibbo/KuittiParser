@@ -34,7 +34,10 @@ namespace KuittiBot.Functions
                     => new TelegramBotClient(token, httpClient));
 
             // Dummy business-logic service
-            builder.Services.AddScoped<UpdateService>();
+            builder.Services.AddSingleton<UpdateService>();
+            // Dummy business-logic service
+            builder.Services.AddSingleton<BotStateMachine>();
+            builder.Services.AddSingleton<IBotStateMachine>(provider => provider.GetRequiredService<BotStateMachine>());
 
             // Tablestorage
             builder.Services.AddSingleton<IUserDataCache, UserDataCache>();

@@ -37,7 +37,7 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        public async Task UpdateAsync(UserDataCacheEntity property)
+        public async Task UpdateUserStateAsync(UserDataCacheEntity property)
         {
             try
             {
@@ -69,16 +69,30 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        public async Task DeleteAsync(string kohdetunnus)
-        {
-            try
-            {
-                await _tableDataStore.DeleteAsync(BatchingMode.None, x => x.Id == kohdetunnus);
-            }
-            catch (Exception e)
-            {
-                throw new Exception($"Failed to delete property number {kohdetunnus}: " + e.Message, e);
-            }
-        }
+        //public async Task<int> GetCount(string userId)
+        //{
+        //    try
+        //    {
+        //        Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
+        //        var user = await _tableDataStore.FindAsync(query);
+        //        return user.ToList().Count()+1;
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        throw new Exception("Retrieving from property cache table failed: " + e.Message, e);
+        //    }
+        //}
+
+        //public async Task DeleteAsync(string kohdetunnus)
+        //{
+        //    try
+        //    {
+        //        await _tableDataStore.DeleteAsync(BatchingMode.None, x => x.Id == kohdetunnus);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        throw new Exception($"Failed to delete property number {kohdetunnus}: " + e.Message, e);
+        //    }
+        //}
     }
 }

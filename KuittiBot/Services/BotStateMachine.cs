@@ -35,12 +35,12 @@ namespace KuittiBot.Functions.Services
             _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
         }
 
-        public async Task<UserStateEntity> GetUserStateAsync(string userId)
+        public async Task<UserDataCacheEntity> GetUserStateAsync(string userId)
         {
             try
             {
-                var response = await _tableClient.GetEntityAsync<UserStateEntity>("UserState", userId);
-                return response.Value;
+                var userFromCache = await _userDataCache.GetUserById(userId);
+                return userFromCache;
             }
             catch (RequestFailedException e) when (e.Status == 404)
             {
@@ -48,16 +48,25 @@ namespace KuittiBot.Functions.Services
             }
         }
 
-        public async Task UpdateUserStateAsync(UserStateEntity userState)
+        public async Task UpdateUserStateAsync(UserDataCacheEntity userState)
         {
-            await _tableClient.UpsertEntityAsync(userState);
+            await _userDataCache.UpdateUserStateAsync(userState);
         }
 
         public async Task OnUpdate(Update update)
         {
             // Retrieve user state from Table Storage
-            var userId = update.Message.From.Id.ToString();
-            var userState = await GetUserStateAsync(userId) ?? new UserStateEntity { PartitionKey = "UserState", RowKey = userId, CurrentState = BotState.WaitingForInput };
+            if (!(update.Message is { } message))
+                return;
+
+            var userId = message.From.Id.ToString();
+            var userState = await GetUserStateAsync(userId) ?? 
+                new UserDataCacheEntity 
+                {
+                    Id = userId,
+                    UserName = update.Message.From.Username,
+                    CurrentState = BotState.WaitingForInput 
+                };
 
             // Determine event and find transition
             var botEvent = DetermineEvent(update);
@@ -67,6 +76,9 @@ namespace KuittiBot.Functions.Services
             {
                 userState.CurrentState = transition.NextState;
                 await transition.Action(update);
+
+                userState.FileName = update.Message.Document.FileName;
+                userState.FileId = update.Message.Document.FileId;
                 await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
             }
         }
@@ -117,31 +129,6 @@ namespace KuittiBot.Functions.Services
         {
             // Implement logic to show summary
             return Task.CompletedTask;
-        }
-
-        private async Task<BotState> GetCurrentStateAsync(string userId)
-        {
-            try
-            {
-                var response = await _userDataCache.GetEntityAsync<UserStateEntity>("UserState", userId);
-                return response.Value.CurrentState;
-            }
-            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
-            {
-                return BotState.WaitingForInput; // Return default state if not found
-            }
-        }
-
-        private async Task SetCurrentStateAsync(string userId, BotState state)
-        {
-            var entity = new UserStateEntity
-            {
-                PartitionKey = "UserState",
-                RowKey = userId,
-                CurrentState = state
-            };
-
-            await _userDataCache.UpsertEntityAsync(entity);
         }
     }
 }

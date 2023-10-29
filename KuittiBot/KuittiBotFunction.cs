@@ -24,16 +24,15 @@ namespace KuittiBot.Functions
     public class KuittiBotFunction
     {
         private readonly UpdateService _updateService;
-        private IUserDataCache _userDataCache;
-        private readonly BotStateMachine _stateMachine = new BotStateMachine();
-        //private ILogger _logger;
+        private readonly IUserDataCache _userDataCache;
+        private readonly IBotStateMachine _stateMachine;
 
-        public KuittiBotFunction(UpdateService updateService, IUserDataCache userDataCache)
+        public KuittiBotFunction(UpdateService updateService, IUserDataCache userDataCache, IBotStateMachine stateMachine)
         {
             _updateService = updateService;
             _userDataCache = userDataCache;
+            _stateMachine = stateMachine;
         }
-
 
         [FunctionName("KuittiBot")]
         public async Task<IActionResult> Update(
@@ -51,6 +50,7 @@ namespace KuittiBot.Functions
                 {
                     await _stateMachine.OnUpdate(update);
                 }
+                await _updateService.WelcomeUser(update);
 
                 return new OkResult();
 
@@ -81,7 +81,6 @@ namespace KuittiBot.Functions
                         FileName = "",
                         UserName = update.Message.From.Username,
                         Description = "",
-                        ProcessEnd = false
                         //Payers = new List<string>()
                     };
 

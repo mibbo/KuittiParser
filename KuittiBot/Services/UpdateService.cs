@@ -41,7 +41,7 @@ namespace KuittiBot.Functions.Services
                 UserName = update.Message.From.Username
             };
 
-            await _userDataCache.UpdateAsync(newUser);
+            await _userDataCache.UpdateUserStateAsync(newUser);
         }
 
 
