@@ -41,10 +41,11 @@ namespace KuittiBot.Functions
             /*, CancellationToken token*/)
         {
             //using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(token, request.HttpContext.RequestAborted);
+            var body = await request.ReadAsStringAsync();
+            var update = JsonConvert.DeserializeObject<Update>(body); 
             try
             {
-                var body = await request.ReadAsStringAsync();
-                var update = JsonConvert.DeserializeObject<Update>(body);
+
                 if (update is null)
                 {
                     logger.LogWarning("Unable to deserialize Update object.");
@@ -79,6 +80,7 @@ namespace KuittiBot.Functions
                     await _updateService.WelcomeUser(update);
                     return new OkResult();
                 };
+                await _updateService.WelcomeUser(update);
 
                 //if (!update.Message)
 
@@ -99,6 +101,7 @@ namespace KuittiBot.Functions
 #pragma warning restore CA1031
             {
                 logger.LogError("Exception: " + e.Message);
+                await _updateService.LogError(update, e);
             }
 
             return new OkResult();

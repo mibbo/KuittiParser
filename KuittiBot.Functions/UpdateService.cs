@@ -66,9 +66,6 @@ namespace KuittiBot.Functions
         {
             _logger.LogInformation("Invoke telegram update function");
 
-            if (update is null)
-                return;
-
             if (!(update.Message is { } message)) return;
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
@@ -85,12 +82,11 @@ namespace KuittiBot.Functions
             //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
         }
 
+
+
         public async Task SayHello(Update update)
         {
             _logger.LogInformation("Invoke telegram update function");
-
-            if (update is null)
-                return;
 
             if (update.CallbackQuery.IsDefined())
             {
@@ -114,6 +110,22 @@ namespace KuittiBot.Functions
             //    chatId: message.Chat.Id,
             //    text: "Hell yeah",
             //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
+        }
+
+        public async Task LogError(Update update, Exception exception)
+        {
+            _logger.LogInformation("Invoke telegram update function");
+
+            if (update is null)
+                return;
+
+            if (!(update.Message is { } message)) return;
+
+            _logger.LogInformation("Received Message from {0}", message.Chat.Id);
+            await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"Voi jummijammi {message.From.FirstName ?? message.From.Username}! \n" +
+                      $"Tuli tämmönen errori: \n" + exception.Message);
         }
 
         public static InlineKeyboardMarkup CreateButton()
