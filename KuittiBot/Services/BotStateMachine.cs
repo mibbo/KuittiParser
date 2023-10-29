@@ -17,7 +17,6 @@ namespace KuittiBot.Functions.Services
         private readonly UpdateService _updateService;
         private IUserDataCache _userDataCache;
         private readonly List<StateTransition> _transitions = new List<StateTransition>();
-        public BotState CurrentState { get; private set; } = BotState.WaitingForInput;
 
         public BotStateMachine(UpdateService updateService, IUserDataCache userDataCache)
         {
@@ -104,6 +103,7 @@ namespace KuittiBot.Functions.Services
         private Task HandleReceipt(Update update)
         {
             // Implement logic to handle receipt
+
             return Task.CompletedTask;
         }
 

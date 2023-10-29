@@ -10,7 +10,6 @@ namespace KuittiBot.Functions.Domain.Abstractions
 {
     public interface IBotStateMachine
     {
-        BotState CurrentState { get; }
         Task OnUpdate(Update update);
         Task<UserDataCacheEntity> GetUserStateAsync(string userId);
         Task UpdateUserStateAsync(UserDataCacheEntity userState);
