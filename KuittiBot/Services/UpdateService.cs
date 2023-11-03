@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using KuittiBot.Functions.Services;
 
 namespace KuittiBot.Functions.Services
 {
@@ -29,12 +30,22 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
+
+            var receipt = await DownloadReceipt(update.Message.Document.FileId);
+
+            List<string> lstString = new List<string> { "Hello", "World", "Here" };
+            List<string> receiptItems = receipt.Products.Select(x => x.Name).ToList();
+
+
+
+
+
+            var str = receiptItems.Aggregate((a, x) => a + "\n" + x);
+            Console.WriteLine(str);
+
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: $"Kirjoita kuittiin osallistuneiden nimet (välilyönnillä eroteltuna):");
-
-            var pdfStream = await DownloadReceipt(update.Message.Document.FileId);
-
+                text: $"Tässä kuitin ostokset: \n{str}" );
 
 
 
@@ -53,7 +64,7 @@ namespace KuittiBot.Functions.Services
 
         //var fileId = update.Message.Document.FileId;
         //var stream = await DownloadReceipt(fileId);
-        private async Task<Stream> DownloadReceipt(string fileId)
+        private async Task<Receipt> DownloadReceipt(string fileId)
         {
             var fileInfo = await _botClient.GetFileAsync(fileId);
 
@@ -62,9 +73,10 @@ namespace KuittiBot.Functions.Services
                 fileId: fileId,
                 destination: fileStream);
 
-            var receipt = ParseProductsFromReceipt(fileStream);
+            fileStream.Position = 0;
+            var receipt = ReceiptParseingService.ParseProductsFromReceipt(fileStream);
 
-            return fileStream;
+            return receipt;
         }
 
 

@@ -104,9 +104,7 @@ namespace KuittiBot.Functions.Services
         private async Task HandleReceipt(Update update)
         {
             // Implement logic to handle receipt
-            var await _updateService.InitializeParseingForUser(update);
-
-            return Task.CompletedTask;
+            await _updateService.InitializeParseingForUser(update);
         }
 
         private Task AskParticipants(Update update)
