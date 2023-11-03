@@ -33,15 +33,20 @@ namespace KuittiBot.Functions.Services
                 chatId: message.Chat.Id,
                 text: $"Kirjoita kuittiin osallistuneiden nimet (välilyönnillä eroteltuna):");
 
-            var newUser = new UserDataCacheEntity()
-            {
-                Id = update.Message.From.Id.ToString(),
-                FileName = update.Message.Document.FileName,
-                FileId = update.Message.Document.FileId,
-                UserName = update.Message.From.Username
-            };
+            var pdfStream = await DownloadReceipt(update.Message.Document.FileId);
 
-            await _userDataCache.UpdateUserStateAsync(newUser);
+
+
+
+            //var newUser = new UserDataCacheEntity()
+            //{
+            //    Id = update.Message.From.Id.ToString(),
+            //    FileName = update.Message.Document.FileName,
+            //    FileId = update.Message.Document.FileId,
+            //    UserName = update.Message.From.Username
+            //};
+
+            //await _userDataCache.UpdateUserStateAsync(newUser);
         }
 
 
@@ -56,6 +61,8 @@ namespace KuittiBot.Functions.Services
             _ = await _botClient.GetInfoAndDownloadFileAsync(
                 fileId: fileId,
                 destination: fileStream);
+
+            var receipt = ParseProductsFromReceipt(fileStream);
 
             return fileStream;
         }
