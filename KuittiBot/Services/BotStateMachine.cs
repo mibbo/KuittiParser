@@ -71,6 +71,7 @@ namespace KuittiBot.Functions.Services
             var botEvent = DetermineEvent(update);
             var transition = _transitions.FirstOrDefault(t => t.CurrentState == userState.CurrentState && t.Event == botEvent);
 
+            // If the transition is succesfull, initialize next stage for the session
             if (transition != null)
             {
                 userState.CurrentState = transition.NextState;
