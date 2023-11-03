@@ -72,7 +72,7 @@ namespace KuittiBot.Functions.Services
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"Moro {message.From.FirstName ?? message.From.Username}! \n" +
-                      $"Parseen sun kuitin bro");
+                      $"Parseen sun kuitin bro!");
 
 
 
