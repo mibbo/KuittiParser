@@ -28,10 +28,10 @@ namespace KuittiBot.Functions.Services
         private void InitializeTransitions()
         {
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedPdfDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
-            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
         }
 
         public async Task<UserDataCacheEntity> GetUserStateAsync(string userId)
@@ -79,7 +79,7 @@ namespace KuittiBot.Functions.Services
 
                 userState.FileName = update.Message.Document.FileName;
                 userState.FileId = update.Message.Document.FileId;
-                await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
+                //await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
             }
         }
 
@@ -107,28 +107,28 @@ namespace KuittiBot.Functions.Services
             await _updateService.InitializeParseingForUser(update);
         }
 
-        private Task AskParticipants(Update update)
-        {
-            // Implement logic to ask for participants' names
-            return Task.CompletedTask;
-        }
+        //private Task AskParticipants(Update update)
+        //{
+        //    // Implement logic to ask for participants' names
+        //    return Task.CompletedTask;
+        //}
 
-        private Task StartItemAllocation(Update update)
-        {
-            // Implement logic to start item allocation
-            return Task.CompletedTask;
-        }
+        //private Task StartItemAllocation(Update update)
+        //{
+        //    // Implement logic to start item allocation
+        //    return Task.CompletedTask;
+        //}
 
-        private Task HandleItemAllocation(Update update)
-        {
-            // Implement logic to handle item allocation
-            return Task.CompletedTask;
-        }
+        //private Task HandleItemAllocation(Update update)
+        //{
+        //    // Implement logic to handle item allocation
+        //    return Task.CompletedTask;
+        //}
 
-        private Task ShowSummary(Update update)
-        {
-            // Implement logic to show summary
-            return Task.CompletedTask;
-        }
+        //private Task ShowSummary(Update update)
+        //{
+        //    // Implement logic to show summary
+        //    return Task.CompletedTask;
+        //}
     }
 }

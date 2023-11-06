@@ -33,13 +33,8 @@ namespace KuittiBot.Functions.Services
 
             var receipt = await DownloadReceipt(update.Message.Document.FileId);
 
-            List<string> lstString = new List<string> { "Hello", "World", "Here" };
+
             List<string> receiptItems = receipt.Products.Select(x => x.Name).ToList();
-
-
-
-
-
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x);
             Console.WriteLine(str);
 
