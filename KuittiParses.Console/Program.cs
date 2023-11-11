@@ -36,12 +36,14 @@ internal class Program
                 List<List<Word>> rowList = wordList.GroupBy(it => it.BoundingBox.Bottom).Select(grp => grp.ToList()).ToList();
                 //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
+                // Remove all rows that are not product rows
+                var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.FirstOrDefault().StartBaseLine.X == 192.62890625).FirstOrDefault();
+                var index = rowList.IndexOf(firstProductRow) - 1;
+                rowList.RemoveRange(0, index + 1);
+
+                // Loop product rows
                 var previousProduct = new Product();
-
-                // Dictionary for products to be added
-
-                // Loop rows
-                foreach (var rowWords in rowList.Skip(4))
+                foreach (var rowWords in rowList)
                 {
                     var words = rowWords.Select(word => word.Text).ToList();
 
@@ -52,7 +54,7 @@ internal class Program
                     }
 
                     // Skip rows that are not product rows
-                    if (rowWords.Last().Text == "----------")
+                    if (rowWords.Last().Text.Contains("------"))
                         continue;
                     if (rowWords.Last().Letters.Where(l => l.Value != "-").ToList().Last().StartBaseLine.X != 207.03125)
                         continue;
@@ -92,7 +94,8 @@ internal class Program
 
     private static void Main(string[] args)
     {
-        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\maukan_kuitti.pdf");
+        //Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\maukan_kuitti.pdf");
+        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_prisma.pdf"); 
         var groupedReceipt = receipt;
         var payersDictionaryGrouped = new Dictionary<string, Payer>();
         var payersDictionary = new Dictionary<string, Payer>();

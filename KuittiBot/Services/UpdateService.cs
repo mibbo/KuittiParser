@@ -35,7 +35,7 @@ namespace KuittiBot.Functions.Services
 
 
             List<string> receiptItems = receipt.Products.Select(x => x.Name).ToList();
-            var str = receiptItems.Aggregate((a, x) => a + "\n" + x);
+            var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
             Console.WriteLine(str);
 
             await _botClient.SendTextMessageAsync(
@@ -61,7 +61,7 @@ namespace KuittiBot.Functions.Services
         //var stream = await DownloadReceipt(fileId);
         private async Task<Receipt> DownloadReceipt(string fileId)
         {
-            var fileInfo = await _botClient.GetFileAsync(fileId);
+            //var fileInfo = await _botClient.GetFileAsync(fileId);
 
             Stream fileStream = new MemoryStream();
             _ = await _botClient.GetInfoAndDownloadFileAsync(
