@@ -10,6 +10,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using KuittiBot.Functions.Services;
+using Telegram.Bot.Types.Enums;
 
 namespace KuittiBot.Functions.Services
 {
@@ -34,13 +35,14 @@ namespace KuittiBot.Functions.Services
             var receipt = await DownloadReceipt(update.Message.Document.FileId);
 
 
-            List<string> receiptItems = receipt.Products.Select(x => x.Name).ToList();
+            List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
             Console.WriteLine(str);
 
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: $"Tässä kuitin ostokset: \n{str}" );
+                text: $"Tässä kuitin ostokset: \n{str}",
+                parseMode: ParseMode.Html);
 
 
 
