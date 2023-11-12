@@ -19,15 +19,17 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
+        private ReceiptParsingService _receiptParsingService;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, ReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
+            _receiptParsingService = receiptParsingService;
         }
 
-        public async Task InitializeParseingForUser(Update update)
+            public async Task InitializeParseingForUser(Update update)
         {
             if (!(update.Message is { } message)) return;
 
@@ -71,7 +73,7 @@ namespace KuittiBot.Functions.Services
                 destination: fileStream);
 
             fileStream.Position = 0;
-            var receipt = ReceiptParseingService.ParseProductsFromReceipt(fileStream);
+            Receipt receipt = _receiptParsingService.ParseProductsFromReceipt(fileStream);
 
             return receipt;
         }

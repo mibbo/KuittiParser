@@ -11,7 +11,8 @@ namespace KuittiBot.Functions.Domain.Models
     public class Receipt
     {
         public string Name { get; set; }
-        public string Description { get; set; }
+        public string ShopName { get; set; }
+        public decimal RawTotalCost { get; set; }
         public List<Product> Products { get; set; }
         public List<Payer> Payers { get; set; }
         public decimal GetReceiptTotalCost()
