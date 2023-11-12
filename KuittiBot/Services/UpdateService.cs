@@ -41,7 +41,8 @@ namespace KuittiBot.Functions.Services
 
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: $"Tässä kuitin ostokset: \n{str}");
+                text: $"Tässä kuitin ostokset: \n{str}",
+                parseMode: ParseMode.Html);
 
 
 
