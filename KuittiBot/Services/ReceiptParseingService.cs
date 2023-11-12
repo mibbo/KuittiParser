@@ -5,6 +5,7 @@ using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig;
 using KuittiBot.Functions.Domain.Models;
 using System.IO;
+using System.Globalization;
 
 namespace KuittiBot.Functions.Services
 {
@@ -62,14 +63,14 @@ namespace KuittiBot.Functions.Services
                         {
                             Regex rgx = new("[^a-zA-Z0-9 ,]");
                             currentRowCost = rgx.Replace(currentRowCost, "");
-                            var negatedCost = decimal.Parse(currentRowCost) * -1;
+                            var negatedCost = decimal.Parse(currentRowCost, new CultureInfo("fi", true)) * -1;
                             productDictionary[previousProduct.Id].Cost = negatedCost;
                             continue;
                         }
 
                         if (words.FirstOrDefault() == "PANTTI" && !currentRowCost.Contains('-'))
                         {
-                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentRowCost);
+                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentRowCost, new CultureInfo("fi", true));
                             continue;
                         }
 
@@ -77,7 +78,7 @@ namespace KuittiBot.Functions.Services
                         {
                             Id = Guid.NewGuid().ToString(),
                             Name = string.Join(" ", words.SkipLast(1)),
-                            Cost = decimal.Parse(words.Last())
+                            Cost = decimal.Parse(words.Last(), new CultureInfo("fi", true))
                         };
                         productDictionary.Add(product.Id, product);
 

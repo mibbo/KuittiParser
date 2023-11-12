@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -60,6 +61,7 @@ internal class Program
                         continue;
 
                     var currentRowCost = words.Last();
+                    var asd = decimal.Parse(words.Last(), new CultureInfo("fi", false));
 
                     if (words.Last().Contains('-'))
                     {
