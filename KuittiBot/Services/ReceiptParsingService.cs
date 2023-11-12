@@ -18,10 +18,11 @@ namespace KuittiBot.Functions.Services
 
         public Receipt ParseProductsFromReceipt(Stream stream)
         {
-            List<string> supportedShops = new List<string> { "K-Market", "Prisma", "S-market", "Sale", "Sokos" };
+            List<string> supportedShops = new List<string> { "K-Citymarket", "K-Market", "Prisma", "S-market", "Sale", "Sokos" };
 
             Dictionary<string, double> shopReceiptCoordinates = new Dictionary<string, double>
-            { 
+            {
+                { "K-Citymarket", 441.57807548136384},
                 { "K-Market", 441.57807548136384},
                 { "Prisma",   211.83203125},
                 { "S-market", 211.83203125},
@@ -38,103 +39,106 @@ namespace KuittiBot.Functions.Services
             using (PdfDocument document = PdfDocument.Open(stream))
             //using (PdfDocument document = PdfDocument.Open(path))
             {
-                foreach (Page page in document.GetPages())
+                //foreach (Page page in document.GetPages())
+                //{ 
+                //}
+                
+                var firstPageOnly = document.GetPage(1); // Does not support multiple pages long receipts (Kesko does this...) could these be attached as one? or handled by each page hmm?
+
+                List<List<Word>> rowList = new();
+
+                var wordList = firstPageOnly.GetWords().ToList();
+
+                var asd = wordList.FirstOrDefault(w => supportedShops.Any(shop => w.Text.ToLower().Contains(shop)))?.Text ?? " ";
+
+                var shopName = wordList
+                    .SelectMany(w => supportedShops.Where(shop => w.Text.ToLower().Contains(shop.ToLower())).Select(shop => shop))
+                    .FirstOrDefault();
+
+                receipt.ShopName = shopName;
+
+                try
                 {
-                    List<List<Word>> rowList = new();
+                    // Create Lists of words for each receipt row number
+                    rowList = wordList.GroupBy(it => it.BoundingBox.Bottom).Select(grp => grp.ToList()).ToList();
+                    //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
-                    var wordList = page.GetWords().ToList();
 
-                    var asd = wordList.FirstOrDefault(w => supportedShops.Any(shop => w.Text.ToLower().Contains(shop)))?.Text ?? " ";
+                    // Locate first product row: Checks the coordinate and that the cost-word contains comma
+                    // This has a problem if the coordinate is not the same in all receipts.
+                    // Possible fix: Check all rows until "YHTEENSÄ" and keep those that have comma in the last word (alleged cost-word)
+                    var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == shopReceiptCoordinates[receipt.ShopName] && x.LastOrDefault().Text.Contains(',')).FirstOrDefault();
 
-                    var shopName = wordList
-                        .SelectMany(w => supportedShops.Where(shop => w.Text.ToLower().Contains(shop.ToLower())).Select(shop => shop))
-                        .FirstOrDefault();
+                    var index = rowList.IndexOf(firstProductRow) - 1;
+                    // Remove all rows before first product row product rows
+                    rowList.RemoveRange(0, index + 1);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Error: Something went wrong during the initial parsing of the pdf file. This kind of receipt is not supported yet.", ex);
+                }
 
-                    receipt.ShopName = shopName;
 
+                // Loop product rows
+                var previousProduct = new Product();
+                foreach (var rowWords in rowList)
+                {
                     try
                     {
-                        // Create Lists of words for each receipt row number
-                        rowList = wordList.GroupBy(it => it.BoundingBox.Bottom).Select(grp => grp.ToList()).ToList();
-                        //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
+                        var words = rowWords.Select(word => word.Text).ToList();
 
-                        // Locate first product row: Checks the coordinate and that the cost-word contains comma
-                        // This has a problem if the coordinate is not the same in all receipts.
-                        // Possible fix: Check all rows until "YHTEENSÄ" and keep those that have comma in the last word (alleged cost-word)
-                        var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == shopReceiptCoordinates[receipt.ShopName] && x.LastOrDefault().Text.Contains(',')).FirstOrDefault();
+                        if (words.First() == "YHTEENSÄ")
+                        {
+                            receipt.Products = productDictionary.Select(p => p.Value).ToList();
 
-                        var index = rowList.IndexOf(firstProductRow) - 1;
-                        // Remove all rows before first product row product rows
-                        rowList.RemoveRange(0, index + 1);
+                            receipt.RawTotalCost = decimal.Parse(words.LastOrDefault(), new CultureInfo("fi", true));
+
+                            var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                            if (calculatedTotalCost != receipt.RawTotalCost)
+                            {
+                                throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                            }
+
+                            break;
+                        }
+
+                        // Skip rows that are not product rows
+                        if (rowWords.Last().Text.Contains("------"))
+                            continue;
+                        if (rowWords.Last().Letters.Where(l => l.Value != "-").ToList().LastOrDefault().EndBaseLine.X != shopReceiptCoordinates[receipt.ShopName])
+                            continue;
+
+                        var currentRowCost = words.Last();
+
+                        if (words.Last().Contains('-'))
+                        {
+                            Regex rgx = new("[^a-zA-Z0-9 ,]");
+                            currentRowCost = rgx.Replace(currentRowCost, "");
+                            var negatedCost = decimal.Parse(currentRowCost, new CultureInfo("fi", true)) * -1;
+                            productDictionary[previousProduct.Id].Cost = negatedCost;
+                            continue;
+                        }
+
+                        if (words.FirstOrDefault() == "PANTTI" && !currentRowCost.Contains('-'))
+                        {
+                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentRowCost, new CultureInfo("fi", true));
+                            continue;
+                        }
+
+                        var product = new Product
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Name = string.Join(" ", words.SkipLast(1)),
+                            Cost = decimal.Parse(words.Last(), new CultureInfo("fi", true))
+                        };
+                        productDictionary.Add(product.Id, product);
+
+                        previousProduct = product;
                     }
                     catch (Exception ex)
                     {
-                        throw new Exception($"Error: Something went wrong during the initial parsing of the pdf file. This kind of receipt is not supported yet.", ex);
-                    }
-
-
-                    // Loop product rows
-                    var previousProduct = new Product();
-                    foreach (var rowWords in rowList)
-                    {
-                        try
-                        {
-
-                            var words = rowWords.Select(word => word.Text).ToList();
-
-                            if (words.First() == "YHTEENSÄ")
-                            {
-                                receipt.Products = productDictionary.Select(p => p.Value).ToList();
-
-                                receipt.RawTotalCost = decimal.Parse(words.LastOrDefault(), new CultureInfo("fi", true));
-
-                                var calculatedTotalCost = receipt.GetReceiptTotalCost();
-                                if (calculatedTotalCost != receipt.RawTotalCost)
-                                {
-                                    throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
-                                }
-
-                                break;
-                            }
-
-                            // Skip rows that are not product rows
-                            if (rowWords.Last().Text.Contains("------"))
-                                continue;
-                            if (rowWords.Last().Letters.Where(l => l.Value != "-").ToList().LastOrDefault().EndBaseLine.X != shopReceiptCoordinates[receipt.ShopName])
-                                continue;
-
-                            var currentRowCost = words.Last();
-
-                            if (words.Last().Contains('-'))
-                            {
-                                Regex rgx = new("[^a-zA-Z0-9 ,]");
-                                currentRowCost = rgx.Replace(currentRowCost, "");
-                                var negatedCost = decimal.Parse(currentRowCost, new CultureInfo("fi", true)) * -1;
-                                productDictionary[previousProduct.Id].Cost = negatedCost;
-                                continue;
-                            }
-
-                            if (words.FirstOrDefault() == "PANTTI" && !currentRowCost.Contains('-'))
-                            {
-                                productDictionary[previousProduct.Id].Cost = decimal.Parse(currentRowCost, new CultureInfo("fi", true));
-                                continue;
-                            }
-
-                            var product = new Product
-                            {
-                                Id = Guid.NewGuid().ToString(),
-                                Name = string.Join(" ", words.SkipLast(1)),
-                                Cost = decimal.Parse(words.Last(), new CultureInfo("fi", true))
-                            };
-                            productDictionary.Add(product.Id, product);
-
-                            previousProduct = product;
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new Exception($"Error: Something went wrong during the parsing of the products. The error occurred during parsing the row: '{String.Join(" ", rowWords)}' ", ex);
-                        }
+                        throw new Exception($"Error: Something went wrong during the parsing of the products. The error occurred during parsing the row: '{String.Join(" ", rowWords)}' ", ex);
                     }
                 }
             }
