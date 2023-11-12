@@ -34,9 +34,13 @@ namespace KuittiBot.Functions.Services
                     List<List<Word>> rowList = wordList.GroupBy(it => it.BoundingBox.Bottom).Select(grp => grp.ToList()).ToList();
                     //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
-                    // Remove all rows that are not product rows
-                    var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == 211.83203125).FirstOrDefault();
+                    // Locate first product row: Checks the coordinate and that the cost-word contains comma
+                    // This has a problem if the coordinate is not the same in all receipts.
+                    // Possible fix: Check all rows until "YHTEENSÄ" and keep those that have comma in the last word (alleged cost-word)
+                    var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == 211.83203125 && x.LastOrDefault().Text.Contains(',')).FirstOrDefault();
+
                     var index = rowList.IndexOf(firstProductRow) - 1;
+                    // Remove all rows before first product row product rows
                     rowList.RemoveRange(0, index + 1);
 
                     // Loop product rows
