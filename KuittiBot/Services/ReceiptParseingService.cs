@@ -34,7 +34,7 @@ namespace KuittiBot.Functions.Services
                     //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
                     // Remove all rows that are not product rows
-                    var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.FirstOrDefault().StartBaseLine.X == 192.62890625).FirstOrDefault();
+                    var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == 211.83203125).FirstOrDefault();
                     var index = rowList.IndexOf(firstProductRow) - 1;
                     rowList.RemoveRange(0, index + 1);
 

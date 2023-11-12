@@ -37,7 +37,7 @@ internal class Program
                 //Dictionary<double, List<Word>> orderDictionary = wordList.GroupBy(it => it.BoundingBox.Bottom).ToDictionary(dict => dict.Key, dict => dict.Select(item => item).ToList());
 
                 // Remove all rows that are not product rows
-                var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.FirstOrDefault().StartBaseLine.X == 192.62890625).FirstOrDefault();
+                var firstProductRow = rowList.Where(x => x.LastOrDefault().Letters.LastOrDefault().EndBaseLine.X == 211.83203125).FirstOrDefault();
                 var index = rowList.IndexOf(firstProductRow) - 1;
                 rowList.RemoveRange(0, index + 1);
 
@@ -95,7 +95,7 @@ internal class Program
     private static void Main(string[] args)
     {
         //Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\maukan_kuitti.pdf");
-        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_prisma.pdf"); 
+        Receipt receipt = ParseProductsFromReceipt(@"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_alekampanja.pdf"); 
         var groupedReceipt = receipt;
         var payersDictionaryGrouped = new Dictionary<string, Payer>();
         var payersDictionary = new Dictionary<string, Payer>();
