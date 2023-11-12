@@ -19,9 +19,9 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
-        private ReceiptParsingService _receiptParsingService;
+        private IReceiptParsingService _receiptParsingService;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, ReceiptParsingService receiptParsingService)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
