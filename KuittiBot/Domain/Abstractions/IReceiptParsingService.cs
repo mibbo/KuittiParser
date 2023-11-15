@@ -10,7 +10,8 @@ namespace KuittiBot.Functions.Domain.Abstractions
 {
     public interface IReceiptParsingService
     {
-        Receipt ParseProductsFromReceipt(Stream stream);
+        Receipt ParseProductsFromReceiptPdf(Stream stream);
+        Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream);
 
     }
 }

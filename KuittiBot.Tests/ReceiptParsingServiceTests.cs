@@ -21,7 +21,7 @@ namespace KuittiBot.Tests
 
                 // Act
 
-                Receipt receipt = service.ParseProductsFromReceipt(stream);
+                Receipt receipt = service.ParseProductsFromReceiptPdf(stream);
 
                 Assert.NotNull(receipt);
 

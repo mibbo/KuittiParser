@@ -7,6 +7,8 @@ using KuittiBot.Functions.Domain.Models;
 using System.IO;
 using System.Globalization;
 using KuittiBot.Functions.Domain.Abstractions;
+using Azure.AI.FormRecognizer.DocumentAnalysis;
+using Azure;
 
 namespace KuittiBot.Functions.Services
 {
@@ -16,7 +18,102 @@ namespace KuittiBot.Functions.Services
 	    {
         }
 
-        public Receipt ParseProductsFromReceipt(Stream stream)
+        public async Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream)
+        {
+            var receipt = new Receipt();
+
+            //set `<your-endpoint>` and `<your-key>` variables with the values from the Azure portal to create your `AzureKeyCredential` and `DocumentAnalysisClient` instance
+            var formAiKey = Environment
+                .GetEnvironmentVariable("FormRecognizerAiKey", EnvironmentVariableTarget.Process)
+                ?? throw new ArgumentException("Can not get FormRecognizerAiKey. Set token in environment setting");
+
+            var formAiEndpoint = Environment
+                .GetEnvironmentVariable("FormRecognizerAiEndpoint", EnvironmentVariableTarget.Process)
+                ?? throw new ArgumentException("Can not get FormRecognizerAiEndpoint. Set token in environment setting");
+
+            AzureKeyCredential credential = new AzureKeyCredential(formAiKey);
+            DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(formAiEndpoint), credential);
+
+            //test document
+            var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kuva1.jpg";
+            var strm = new MemoryStream();
+            using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            {
+                fileStream.CopyTo(strm);
+            }
+            strm.Position = 0;
+
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-receipt", strm);
+
+            AnalyzeResult result = operation.Value;
+
+            for (int i = 0; i < result.Documents.Count; i++)
+            {
+                AnalyzedDocument document = result.Documents[i];
+
+                if (document.Fields.TryGetValue("Merchantname", out DocumentField shopName))
+                {
+                    if (shopName.FieldType == DocumentFieldType.String)
+                    {
+                        receipt.ShopName = shopName.Value.AsString();
+                    }
+                }
+
+                if (document.Fields.TryGetValue("Items", out DocumentField itemsField))
+                {
+                    if (itemsField.FieldType == DocumentFieldType.List)
+                    {
+                        List<Product> products = new List<Product>();
+                        foreach (DocumentField itemField in itemsField.Value.AsList())
+                        {
+                            if (itemField.FieldType == DocumentFieldType.Dictionary)
+                            {
+                                IReadOnlyDictionary<string, DocumentField> itemFields = itemField.Value.AsDictionary();
+
+                                var product = new Product
+                                {
+                                    Id = Guid.NewGuid().ToString(),
+                                };
+
+                                if (itemFields.TryGetValue("Description", out DocumentField itemDescriptionField))
+                                {
+                                    string itemDescription = itemDescriptionField.Value.AsString();
+
+                                    product.Name = itemDescription;
+                                }
+
+                                if (itemFields.TryGetValue("TotalPrice", out DocumentField itemAmountField))
+                                {
+                                    if (itemAmountField.FieldType == DocumentFieldType.Double)
+                                    {
+                                        product.Cost = decimal.Parse(itemAmountField.Content, new CultureInfo("fi", true));
+                                    }
+                                }
+                                products.Add(product);
+                            }
+                        }
+                        receipt.Products = products;
+                    }
+                }
+
+                if (document.Fields.TryGetValue("Total", out DocumentField invoiceTotalField))
+                {
+                    if (invoiceTotalField.FieldType == DocumentFieldType.Double)
+                    {
+                        receipt.RawTotalCost = decimal.Parse(invoiceTotalField.Content, new CultureInfo("fi", true));
+                        var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                        if (calculatedTotalCost != receipt.RawTotalCost)
+                        {
+                            throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                        }
+
+                    }
+                }
+            }
+            return receipt;
+        }
+
+        public Receipt ParseProductsFromReceiptPdf(Stream stream)
         {
             List<string> supportedShops = new List<string> { "K-Citymarket", "K-Market", "Prisma", "S-market", "Sale", "Sokos" };
 
