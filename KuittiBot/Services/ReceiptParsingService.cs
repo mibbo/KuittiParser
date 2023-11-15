@@ -35,15 +35,15 @@ namespace KuittiBot.Functions.Services
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(formAiEndpoint), credential);
 
             //test document
-            var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kuva1.jpg";
-            var strm = new MemoryStream();
-            using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
-            {
-                fileStream.CopyTo(strm);
-            }
-            strm.Position = 0;
+            //var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kuva1.jpg";
+            //var strm = new MemoryStream();
+            //using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            //{
+            //    fileStream.CopyTo(strm);
+            //}
+            //strm.Position = 0;
 
-            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-receipt", strm);
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-receipt", stream);
 
             AnalyzeResult result = operation.Value;
 

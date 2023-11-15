@@ -2,6 +2,7 @@
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
 using Microsoft.Azure.Documents;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace KuittiBot.Functions.Services
 
         private void InitializeTransitions()
         {
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedPdfDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
             //_transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
@@ -85,9 +86,9 @@ namespace KuittiBot.Functions.Services
 
         private BotEvent DetermineEvent(Update update)
         {
-            if (update.Type == UpdateType.Message && update.Message.Document != null)
+            if (update.Type == UpdateType.Message && (update.Message.Document != null || update.Message.Photo != null))
             {
-                return BotEvent.ReceivedPdfDocument;
+                return BotEvent.ReceivedReceiptDocument;
             }
             if (update.Type == UpdateType.Message)
             {

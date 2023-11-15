@@ -33,9 +33,10 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
-            var documentType = update.Message.Document.MimeType;
+            var documentType = update.Message?.Document?.MimeType ?? "photo";
+            var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
 
-            var receipt = await DownloadReceiptPdf(update.Message.Document.FileId, documentType);
+            var receipt = await DownloadReceiptPdf(fileId, documentType);
 
             List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
@@ -68,9 +69,9 @@ namespace KuittiBot.Functions.Services
             //var fileInfo = await _botClient.GetFileAsync(fileId);
 
             Stream fileStream = new MemoryStream();
-            //_ = await _botClient.GetInfoAndDownloadFileAsync(
-            //    fileId: fileId,
-            //    destination: fileStream);
+            _ = await _botClient.GetInfoAndDownloadFileAsync(
+                fileId: fileId,
+                destination: fileStream);
 
             fileStream.Position = 0;
             Receipt receipt = new Receipt();
@@ -79,12 +80,10 @@ namespace KuittiBot.Functions.Services
             {
                 receipt = _receiptParsingService.ParseProductsFromReceiptPdf(fileStream);
             }
-            if (documentType == "application/jpg" || documentType == "application/jpeg" || documentType == "application/png")
+            if (documentType == "photo")
             {
                 receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(fileStream);
             }
-
-
 
             return receipt;
         }
