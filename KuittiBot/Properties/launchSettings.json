@@ -4,7 +4,6 @@
       "commandName": "Project",
       "commandLineArgs": "--port 7253",
       "environmentVariables": {
-        "tgtoken": "5909494318:AAHOwYEEnxdoezTgz2lR1rZdYVhffuyYyBM",
         "AzureWebJobsStorage": "UseDevelopmentStorage=true"
       }
     }
