@@ -48,7 +48,6 @@ namespace KuittiBot.Functions.Services
                 Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
 
                 var receiptItems = document.Fields["Items"].Value.AsList();
-
                 var firstProductName = receiptItems.FirstOrDefault().Value.AsDictionary()["Description"].Value.AsString();
                 List<string> productCostList = ReturnProductCostList(lines, firstProductName);
 
@@ -115,12 +114,12 @@ namespace KuittiBot.Functions.Services
                         if (currentProduct.Name.Contains("PANTTI") && !currentProductCostString.Contains('-'))
                         {
                             productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
+                            c++;
+                            p++;
                             continue;
                         }
-
                         productDictionary.Add(currentProduct.Id, currentProduct);
                         previousProduct = currentProduct;
-
 
                         c++;
                         p++;
@@ -136,11 +135,6 @@ namespace KuittiBot.Functions.Services
                         productDictionary[previousProduct.Id].Cost = negatedCost;
 
                         Console.WriteLine("  -New cost: " + productDictionary[previousProduct.Id].Cost);
-
-
-                        //productDictionary.Add(currentProduct.Id, currentProduct);
-                        //previousProduct = currentProduct;
-
 
                         c++;
                     }
