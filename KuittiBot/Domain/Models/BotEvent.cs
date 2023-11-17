@@ -8,7 +8,7 @@ namespace KuittiBot.Functions.Domain.Models
 {
     public enum BotEvent
     {
-        ReceivedPdfDocument,
+        ReceivedReceiptDocument,
         ReceivedTextMessage,
         ReceivedCallbackQuery
     }

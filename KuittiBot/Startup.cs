@@ -35,6 +35,9 @@ namespace KuittiBot.Functions
 
             // Dummy business-logic service
             builder.Services.AddSingleton<UpdateService>();
+
+            builder.Services.AddSingleton<IReceiptParsingService, ReceiptParsingService>();
+
             // Dummy business-logic service
             builder.Services.AddSingleton<BotStateMachine>();
             builder.Services.AddSingleton<IBotStateMachine>(provider => provider.GetRequiredService<BotStateMachine>());

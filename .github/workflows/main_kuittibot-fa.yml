@@ -15,7 +15,7 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     environment: dev
     steps:
     - name: 'Checkout GitHub Action'
@@ -27,7 +27,7 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: 'Resolve Project Dependencies Using Dotnet'
-      shell: pwsh
+      shell: bash
       run: |
         pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
         dotnet build --configuration Release --output ./output

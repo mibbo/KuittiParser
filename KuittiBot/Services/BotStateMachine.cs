@@ -2,6 +2,7 @@
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
 using Microsoft.Azure.Documents;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,11 +28,11 @@ namespace KuittiBot.Functions.Services
 
         private void InitializeTransitions()
         {
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedPdfDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
-            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
+            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
         }
 
         public async Task<UserDataCacheEntity> GetUserStateAsync(string userId)
@@ -77,17 +78,17 @@ namespace KuittiBot.Functions.Services
                 userState.CurrentState = transition.NextState;
                 await transition.Action(update);
 
-                userState.FileName = update.Message.Document.FileName;
-                userState.FileId = update.Message.Document.FileId;
-                await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
+                userState.FileName = update.Message.Document?.FileName ?? update.Message.Photo?.LastOrDefault().FileUniqueId;
+                userState.FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId;
+                //await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
             }
         }
 
         private BotEvent DetermineEvent(Update update)
         {
-            if (update.Type == UpdateType.Message && update.Message.Document != null)
+            if (update.Type == UpdateType.Message && (update.Message.Document != null || update.Message.Photo != null))
             {
-                return BotEvent.ReceivedPdfDocument;
+                return BotEvent.ReceivedReceiptDocument;
             }
             if (update.Type == UpdateType.Message)
             {
@@ -101,35 +102,34 @@ namespace KuittiBot.Functions.Services
             return BotEvent.ReceivedTextMessage;
         }
 
-        private Task HandleReceipt(Update update)
+        private async Task HandleReceipt(Update update)
         {
             // Implement logic to handle receipt
-
-            return Task.CompletedTask;
+            await _updateService.InitializeParseingForUser(update);
         }
 
-        private Task AskParticipants(Update update)
-        {
-            // Implement logic to ask for participants' names
-            return Task.CompletedTask;
-        }
+        //private Task AskParticipants(Update update)
+        //{
+        //    // Implement logic to ask for participants' names
+        //    return Task.CompletedTask;
+        //}
 
-        private Task StartItemAllocation(Update update)
-        {
-            // Implement logic to start item allocation
-            return Task.CompletedTask;
-        }
+        //private Task StartItemAllocation(Update update)
+        //{
+        //    // Implement logic to start item allocation
+        //    return Task.CompletedTask;
+        //}
 
-        private Task HandleItemAllocation(Update update)
-        {
-            // Implement logic to handle item allocation
-            return Task.CompletedTask;
-        }
+        //private Task HandleItemAllocation(Update update)
+        //{
+        //    // Implement logic to handle item allocation
+        //    return Task.CompletedTask;
+        //}
 
-        private Task ShowSummary(Update update)
-        {
-            // Implement logic to show summary
-            return Task.CompletedTask;
-        }
+        //private Task ShowSummary(Update update)
+        //{
+        //    // Implement logic to show summary
+        //    return Task.CompletedTask;
+        //}
     }
 }

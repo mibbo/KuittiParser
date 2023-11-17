@@ -9,6 +9,12 @@ using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using KuittiBot.Functions.Services;
+using Telegram.Bot.Types.Enums;
+using System.Web;
+using Microsoft.AspNetCore.Http;
+using System.Net;
+using System.IO;
 
 namespace KuittiBot.Functions.Services
 {
@@ -17,47 +23,90 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
+        private IReceiptParsingService _receiptParsingService;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
+            _receiptParsingService = receiptParsingService;
         }
 
-        public async Task InitializeParseingForUser(Update update)
+            public async Task InitializeParseingForUser(Update update)
         {
             if (!(update.Message is { } message)) return;
 
+            var documentType = update.Message?.Document?.MimeType ?? "photo";
+            var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
+
+            var receipt = await DownloadReceiptPdf(fileId, documentType);
+
+            List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
+            var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
+            Console.WriteLine(str);
+
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: $"Kirjoita kuittiin osallistuneiden nimet (välilyönnillä eroteltuna):");
+                text: $"Tässä kuitin ostokset: \n{str}",
+                parseMode: ParseMode.Html);
 
-            var newUser = new UserDataCacheEntity()
-            {
-                Id = update.Message.From.Id.ToString(),
-                FileName = update.Message.Document.FileName,
-                FileId = update.Message.Document.FileId,
-                UserName = update.Message.From.Username
-            };
 
-            await _userDataCache.UpdateUserStateAsync(newUser);
+
+            //var newUser = new UserDataCacheEntity()
+            //{
+            //    Id = update.Message.From.Id.ToString(),
+            //    FileName = update.Message.Document.FileName,
+            //    FileId = update.Message.Document.FileId,
+            //    UserName = update.Message.From.Username
+            //};
+
+            //await _userDataCache.UpdateUserStateAsync(newUser);
         }
 
 
 
         //var fileId = update.Message.Document.FileId;
         //var stream = await DownloadReceipt(fileId);
-        private async Task<Stream> DownloadReceipt(string fileId)
+        private async Task<Receipt> DownloadReceiptPdf(string fileId, string documentType)
         {
-            var fileInfo = await _botClient.GetFileAsync(fileId);
+            //var fileInfo = await _botClient.GetFileAsync(fileId);
 
-            Stream fileStream = new MemoryStream();
-            _ = await _botClient.GetInfoAndDownloadFileAsync(
-                fileId: fileId,
-                destination: fileStream);
+            bool isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
 
-            return fileStream;
+            string response = isLocal ? "Function is running on local environment." : "Function is running on Azure.";
+
+            Stream stream = new MemoryStream();
+
+            if (isLocal)
+            {
+                //test document
+                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kcitymarket.pdf"; //testikuitti_kcitymarket.pdf
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+                {
+                    fs.CopyTo(stream);
+                }
+            }
+            else
+            {
+                _ = await _botClient.GetInfoAndDownloadFileAsync(
+                    fileId: fileId,
+                    destination: stream);
+            }
+
+            stream.Position = 0;
+            Receipt receipt = new Receipt();
+
+            if (documentType == "application/pdf")
+            {
+                receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
+            }
+            if (documentType == "photo")
+            {
+                receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+            }
+
+            return receipt;
         }
 
 
@@ -72,7 +121,7 @@ namespace KuittiBot.Functions.Services
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"Moro {message.From.FirstName ?? message.From.Username}! \n" +
-                      $"Parseen sun kuitin bro");
+                      $"Parseen sun kuitin bro!");
 
 
 
