@@ -78,8 +78,8 @@ namespace KuittiBot.Functions.Services
                 userState.CurrentState = transition.NextState;
                 await transition.Action(update);
 
-                userState.FileName = update.Message.Document.FileName;
-                userState.FileId = update.Message.Document.FileId;
+                userState.FileName = update.Message.Document?.FileName ?? update.Message.Photo?.LastOrDefault().FileUniqueId;
+                userState.FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId;
                 //await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
             }
         }

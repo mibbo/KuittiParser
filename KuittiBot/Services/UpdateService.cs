@@ -11,6 +11,10 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using KuittiBot.Functions.Services;
 using Telegram.Bot.Types.Enums;
+using System.Web;
+using Microsoft.AspNetCore.Http;
+using System.Net;
+using System.IO;
 
 namespace KuittiBot.Functions.Services
 {
@@ -68,21 +72,38 @@ namespace KuittiBot.Functions.Services
         {
             //var fileInfo = await _botClient.GetFileAsync(fileId);
 
-            Stream fileStream = new MemoryStream();
-            _ = await _botClient.GetInfoAndDownloadFileAsync(
-                fileId: fileId,
-                destination: fileStream);
+            bool isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
 
-            fileStream.Position = 0;
+            string response = isLocal ? "Function is running on local environment." : "Function is running on Azure.";
+
+            Stream stream = new MemoryStream();
+
+            if (isLocal)
+            {
+                //test document
+                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kcitymarket.pdf"; //testikuitti_kcitymarket.pdf
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+                {
+                    fs.CopyTo(stream);
+                }
+            }
+            else
+            {
+                _ = await _botClient.GetInfoAndDownloadFileAsync(
+                    fileId: fileId,
+                    destination: stream);
+            }
+
+            stream.Position = 0;
             Receipt receipt = new Receipt();
 
             if (documentType == "application/pdf")
             {
-                receipt = _receiptParsingService.ParseProductsFromReceiptPdf(fileStream);
+                receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
             }
             if (documentType == "photo")
             {
-                receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(fileStream);
+                receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
             }
 
             return receipt;

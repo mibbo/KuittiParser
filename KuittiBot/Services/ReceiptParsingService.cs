@@ -14,8 +14,8 @@ namespace KuittiBot.Functions.Services
 {
     public class ReceiptParsingService : IReceiptParsingService
     {
-	    public ReceiptParsingService()
-	    {
+        public ReceiptParsingService()
+        {
         }
 
         public async Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream)
@@ -34,18 +34,12 @@ namespace KuittiBot.Functions.Services
             AzureKeyCredential credential = new AzureKeyCredential(formAiKey);
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(formAiEndpoint), credential);
 
-            //test document
-            //var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_kuva1.jpg";
-            //var strm = new MemoryStream();
-            //using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
-            //{
-            //    fileStream.CopyTo(strm);
-            //}
-            //strm.Position = 0;
-
             AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-receipt", stream);
 
             AnalyzeResult result = operation.Value;
+
+            List<string> lines = result.Pages.FirstOrDefault().Lines.Select(x => x.Content).ToList();
+
 
             for (int i = 0; i < result.Documents.Count; i++)
             {
@@ -59,40 +53,75 @@ namespace KuittiBot.Functions.Services
                     }
                 }
 
-                if (document.Fields.TryGetValue("Items", out DocumentField itemsField))
+                if (document.Fields.TryGetValue("Items", out DocumentField receiptItems))
                 {
-                    if (itemsField.FieldType == DocumentFieldType.List)
+                    if (receiptItems.FieldType == DocumentFieldType.List)
                     {
-                        List<Product> products = new List<Product>();
-                        foreach (DocumentField itemField in itemsField.Value.AsList())
-                        {
-                            if (itemField.FieldType == DocumentFieldType.Dictionary)
-                            {
-                                IReadOnlyDictionary<string, DocumentField> itemFields = itemField.Value.AsDictionary();
 
-                                var product = new Product
+                        Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
+                        var previousProduct = new Product();
+
+                        receiptItems.Value.AsList().FirstOrDefault().Value.AsDictionary().TryGetValue("Description", out DocumentField firstProductName);
+                        List<string> productCostList = ReturnProductCostList(lines, firstProductName.Value.AsString());
+
+                        foreach (DocumentField productField in receiptItems.Value.AsList())
+                        {
+                            if (productField.FieldType == DocumentFieldType.Dictionary)
+                            {
+                                IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
+
+                                var currentProduct = new Product
                                 {
                                     Id = Guid.NewGuid().ToString(),
                                 };
 
-                                if (itemFields.TryGetValue("Description", out DocumentField itemDescriptionField))
+                                if (productData.TryGetValue("Description", out DocumentField productNameData))
                                 {
-                                    string itemDescription = itemDescriptionField.Value.AsString();
-
-                                    product.Name = itemDescription;
+                                    currentProduct.Name = productNameData.Value.AsString();
                                 }
 
-                                if (itemFields.TryGetValue("TotalPrice", out DocumentField itemAmountField))
+                                if (productData.TryGetValue("TotalPrice", out DocumentField productCostData))
                                 {
-                                    if (itemAmountField.FieldType == DocumentFieldType.Double)
+                                    if (productCostData.FieldType == DocumentFieldType.Double)
                                     {
-                                        product.Cost = decimal.Parse(itemAmountField.Content, new CultureInfo("fi", true));
+
+                                        var currentProductCost = productCostData.Content;
+
+                                        string lastNumberInContent = ExtractLastNumber(productField.Content, currentProductCost);
+
+                                        
+
+                                        if (lastNumberInContent != currentProductCost)
+                                        {
+                                            var originalCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
+                                            var discount = decimal.Parse(lastNumberInContent, new CultureInfo("fi", true));
+
+                                            currentProductCost = (originalCost + discount).ToString();
+                                        }
+
+                                        if (currentProductCost.Contains('-'))
+                                        {
+                                            Regex rgx = new("[^a-zA-Z0-9 ,]");
+                                            currentProductCost = rgx.Replace(currentProductCost, "");
+                                            var negatedCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true)) * -1;
+                                            productDictionary[previousProduct.Id].Cost = negatedCost;
+                                            continue;
+                                        }
+
+                                        if (currentProduct.Name.Contains("PANTTI") && !currentProductCost.Contains('-'))
+                                        {
+                                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
+                                            continue;
+                                        }
+
+                                        currentProduct.Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
                                     }
                                 }
-                                products.Add(product);
+                                productDictionary.Add(currentProduct.Id, currentProduct);
+                                previousProduct = currentProduct;
                             }
                         }
-                        receipt.Products = products;
+                        receipt.Products = productDictionary.Select(p => p.Value).ToList();
                     }
                 }
 
@@ -111,6 +140,38 @@ namespace KuittiBot.Functions.Services
                 }
             }
             return receipt;
+        }
+
+        private static List<string> ReturnProductCostList(List<string> lines, string firstProduct)
+        {
+            // Find the index of the specified start and end strings
+            int startIndex = lines.FindIndex(item => item == firstProduct);
+            int endIndex = lines.FindIndex(item => item == "YHTEENSÄ");
+
+            // If either string is not found, or if start comes after end, do not process further
+            if (startIndex == -1 || endIndex == -1 || startIndex > endIndex)
+            {
+                throw new Exception($"Error: Something went wrong during the product parsing. Invalid receipt structure.");
+            }
+
+            // Select only the items between these two indices
+            var relevantItems = lines.Skip(startIndex).Take(endIndex - startIndex + 2).ToList();
+
+            // Regular expression to match a double value. It accounts for a comma as a decimal separator and an optional trailing hyphen.
+            Regex doubleRegex = new Regex(@"^\d+,\d+(-)?$");
+
+            var productCostList = relevantItems.Where(item => doubleRegex.IsMatch(item)).ToList();
+
+            return productCostList;
+        }
+        private static string ExtractLastNumber(string content, string cost)
+        {
+            // Regex to find the last number in the string. It handles negative numbers as well.
+            var match = Regex.Match(content, @"([0-9,]+-?)$");
+
+            var lastNumber = (content.EndsWith("-") && match.Success) ? match.Groups[1].Value : cost;
+
+            return lastNumber;
         }
 
         public Receipt ParseProductsFromReceiptPdf(Stream stream)
@@ -206,32 +267,32 @@ namespace KuittiBot.Functions.Services
                         if (rowWords.Last().Letters.Where(l => l.Value != "-").ToList().LastOrDefault().EndBaseLine.X != shopReceiptCoordinates[receipt.ShopName])
                             continue;
 
-                        var currentRowCost = words.Last();
+                        var currentProductCost = words.Last();
 
-                        if (words.Last().Contains('-'))
+                        if (currentProductCost.Contains('-'))
                         {
                             Regex rgx = new("[^a-zA-Z0-9 ,]");
-                            currentRowCost = rgx.Replace(currentRowCost, "");
-                            var negatedCost = decimal.Parse(currentRowCost, new CultureInfo("fi", true)) * -1;
+                            currentProductCost = rgx.Replace(currentProductCost, "");
+                            var negatedCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true)) * -1;
                             productDictionary[previousProduct.Id].Cost = negatedCost;
                             continue;
                         }
 
-                        if (words.FirstOrDefault() == "PANTTI" && !currentRowCost.Contains('-'))
+                        if (words.FirstOrDefault() == "PANTTI" && !currentProductCost.Contains('-'))
                         {
-                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentRowCost, new CultureInfo("fi", true));
+                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
                             continue;
                         }
 
-                        var product = new Product
+                        var currentProduct = new Product
                         {
                             Id = Guid.NewGuid().ToString(),
                             Name = string.Join(" ", words.SkipLast(1)),
-                            Cost = decimal.Parse(words.Last(), new CultureInfo("fi", true))
+                            Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true))
                         };
-                        productDictionary.Add(product.Id, product);
+                        productDictionary.Add(currentProduct.Id, currentProduct);
 
-                        previousProduct = product;
+                        previousProduct = currentProduct;
                     }
                     catch (Exception ex)
                     {
