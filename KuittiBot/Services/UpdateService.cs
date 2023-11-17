@@ -37,7 +37,7 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
-            var documentType = update.Message?.Document?.MimeType ?? "photo";
+            var documentType = update.Message?.Document?.MimeType ?? "application/jpg";
             var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
 
             var receipt = await DownloadReceiptPdf(fileId, documentType);
@@ -81,7 +81,7 @@ namespace KuittiBot.Functions.Services
             if (isLocal)
             {
                 //test document
-                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti_sale.pdf"; //testikuitti_kcitymarket.pdf
+                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\msg5909494318-95241.jpg"; //testikuitti_kcitymarket.pdf
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
                     fs.CopyTo(stream);
@@ -95,15 +95,19 @@ namespace KuittiBot.Functions.Services
             }
 
             stream.Position = 0;
+
+            var uploader = new AzureBlobUploader();
+            await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
+
             Receipt receipt = new Receipt();
 
             if (documentType == "application/pdf")
             {
                 receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
             }
-            if (documentType == "photo")
+            if (documentType == "application/jpg")
             {
-                receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+                //receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
             }
 
             return receipt;
