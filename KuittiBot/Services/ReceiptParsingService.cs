@@ -14,25 +14,22 @@ namespace KuittiBot.Functions.Services
 {
     public class ReceiptParsingService : IReceiptParsingService
     {
+        private static string _aiKey = Environment
+                .GetEnvironmentVariable("FormRecognizerAiKey", EnvironmentVariableTarget.Process)
+                ?? throw new ArgumentException("Can not get FormRecognizerAiKey. Set token in environment setting");
+        private static string _aiUrl = Environment
+                .GetEnvironmentVariable("FormRecognizerAiEndpoint", EnvironmentVariableTarget.Process)
+                ?? throw new ArgumentException("Can not get FormRecognizerAiEndpoint. Set token in environment setting");
+
         public ReceiptParsingService()
         {
         }
 
         public async Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream)
         {
-            var receipt = new Receipt();
 
-            //set `<your-endpoint>` and `<your-key>` variables with the values from the Azure portal to create your `AzureKeyCredential` and `DocumentAnalysisClient` instance
-            var formAiKey = Environment
-                .GetEnvironmentVariable("FormRecognizerAiKey", EnvironmentVariableTarget.Process)
-                ?? throw new ArgumentException("Can not get FormRecognizerAiKey. Set token in environment setting");
-
-            var formAiEndpoint = Environment
-                .GetEnvironmentVariable("FormRecognizerAiEndpoint", EnvironmentVariableTarget.Process)
-                ?? throw new ArgumentException("Can not get FormRecognizerAiEndpoint. Set token in environment setting");
-
-            AzureKeyCredential credential = new AzureKeyCredential(formAiKey);
-            DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(formAiEndpoint), credential);
+            //AzureKeyCredential credential = new AzureKeyCredential(_aiKey);
+            DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
 
             AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-receipt", stream);
 
@@ -40,104 +37,202 @@ namespace KuittiBot.Functions.Services
 
             List<string> lines = result.Pages.FirstOrDefault().Lines.Select(x => x.Content).ToList();
 
+            var receipt = new Receipt();
 
             for (int i = 0; i < result.Documents.Count; i++)
             {
                 AnalyzedDocument document = result.Documents[i];
 
-                if (document.Fields.TryGetValue("Merchantname", out DocumentField shopName))
+                receipt.ShopName = document.Fields["MerchantName"].Value.AsString();
+
+                Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
+
+                var receiptItems = document.Fields["Items"].Value.AsList();
+
+                var firstProductName = receiptItems.FirstOrDefault().Value.AsDictionary()["Description"].Value.AsString();
+                List<string> productCostList = ReturnProductCostList(lines, firstProductName);
+
+                var previousProduct = new Product();
+
+                //List<string> productCostList = new List<string> { "1", "1.1", "2", "2.2" };  // Longer AKA productCostList
+                //List<string> receiptItems = new List<string> { "1", "2", "2.2" }; // shorter AKA AI list
+
+                int c = 0;  // cost list index
+                int p = 0; // product list index
+                while (i < productCostList.Count-1 && p < receiptItems.Count)
                 {
-                    if (shopName.FieldType == DocumentFieldType.String)
+                    var cCost = productCostList[c];
+                    var pCost = receiptItems[p].Value.AsDictionary()["TotalPrice"].Content;
+
+                    // Process matching items
+
+
+                    IReadOnlyDictionary<string, DocumentField> productData = receiptItems[p].Value.AsDictionary();
+
+                    var currentProductCostString = productData["TotalPrice"].Content;
+
+
+
+                    if (cCost == pCost)
                     {
-                        receipt.ShopName = shopName.Value.AsString();
-                    }
-                }
-
-                if (document.Fields.TryGetValue("Items", out DocumentField receiptItems))
-                {
-                    if (receiptItems.FieldType == DocumentFieldType.List)
-                    {
-
-                        Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
-                        var previousProduct = new Product();
-
-                        receiptItems.Value.AsList().FirstOrDefault().Value.AsDictionary().TryGetValue("Description", out DocumentField firstProductName);
-                        List<string> productCostList = ReturnProductCostList(lines, firstProductName.Value.AsString());
-
-                        foreach (DocumentField productField in receiptItems.Value.AsList())
+                        var currentProduct = new Product
                         {
-                            if (productField.FieldType == DocumentFieldType.Dictionary)
-                            {
-                                IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
+                            Id = Guid.NewGuid().ToString(),
+                            Name = productData["Description"].Value.AsString(),
+                            Cost = decimal.Parse(currentProductCostString, new CultureInfo("fi", true))
+                        };
 
-                                var currentProduct = new Product
-                                {
-                                    Id = Guid.NewGuid().ToString(),
-                                };
+                        string lastNumberInContent = ExtractLastNumber(receiptItems[p].Content, currentProductCostString);
 
-                                if (productData.TryGetValue("Description", out DocumentField productNameData))
-                                {
-                                    currentProduct.Name = productNameData.Value.AsString();
-                                }
-
-                                if (productData.TryGetValue("TotalPrice", out DocumentField productCostData))
-                                {
-                                    if (productCostData.FieldType == DocumentFieldType.Double)
-                                    {
-
-                                        var currentProductCost = productCostData.Content;
-
-                                        string lastNumberInContent = ExtractLastNumber(productField.Content, currentProductCost);
-
-                                        
-
-                                        if (lastNumberInContent != currentProductCost)
-                                        {
-                                            var originalCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
-                                            var discount = decimal.Parse(lastNumberInContent, new CultureInfo("fi", true));
-
-                                            currentProductCost = (originalCost + discount).ToString();
-                                        }
-
-                                        if (currentProductCost.Contains('-'))
-                                        {
-                                            Regex rgx = new("[^a-zA-Z0-9 ,]");
-                                            currentProductCost = rgx.Replace(currentProductCost, "");
-                                            var negatedCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true)) * -1;
-                                            productDictionary[previousProduct.Id].Cost = negatedCost;
-                                            continue;
-                                        }
-
-                                        if (currentProduct.Name.Contains("PANTTI") && !currentProductCost.Contains('-'))
-                                        {
-                                            productDictionary[previousProduct.Id].Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
-                                            continue;
-                                        }
-
-                                        currentProduct.Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
-                                    }
-                                }
-                                productDictionary.Add(currentProduct.Id, currentProduct);
-                                previousProduct = currentProduct;
-                            }
-                        }
-                        receipt.Products = productDictionary.Select(p => p.Value).ToList();
-                    }
-                }
-
-                if (document.Fields.TryGetValue("Total", out DocumentField invoiceTotalField))
-                {
-                    if (invoiceTotalField.FieldType == DocumentFieldType.Double)
-                    {
-                        receipt.RawTotalCost = decimal.Parse(invoiceTotalField.Content, new CultureInfo("fi", true));
-                        var calculatedTotalCost = receipt.GetReceiptTotalCost();
-                        if (calculatedTotalCost != receipt.RawTotalCost)
+                        Console.WriteLine(currentProduct.Name);
+                        Console.WriteLine("  -Cost " + pCost);
+                        // Check if the AI recognized product field contains also the discount (it sometimes recognizes discounts as separate product but not always...)
+                        if (lastNumberInContent != currentProductCostString)
                         {
-                            throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                            var originalCost = currentProduct.Cost;
+                            var discount = decimal.Parse(lastNumberInContent, new CultureInfo("fi", true));
+                            Console.WriteLine("   -Current discount: " + discount);
+
+                            currentProduct.Cost = discount;
+                            Console.WriteLine("  -New cost: " + currentProduct.Cost);
+                            c++;
                         }
 
+                        // If the AI recognizes a discount as a standalone product (then it is negated from previous product)
+                        if (currentProductCostString.Contains('-'))
+                        {
+                            Regex rgx = new("[^a-zA-Z0-9 ,]");
+                            currentProductCostString = rgx.Replace(currentProductCostString, "");
+                            Console.WriteLine("   -Current discount: -" + currentProductCostString);
+                            var negatedCost = decimal.Parse(currentProductCostString, new CultureInfo("fi", true)) * -1;
+                            productDictionary[previousProduct.Id].Cost = negatedCost;
+                            Console.WriteLine("  -New cost: " + productDictionary[previousProduct.Id].Cost);
+                            c++;
+                            p++;
+                            continue;
+                        }
+
+                        if (currentProduct.Name.Contains("PANTTI") && !currentProductCostString.Contains('-'))
+                        {
+                            productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
+                            continue;
+                        }
+
+                        productDictionary.Add(currentProduct.Id, currentProduct);
+                        previousProduct = currentProduct;
+
+
+                        c++;
+                        p++;
+                    }
+                    else
+                    {
+                        // Process only the discount items that the AI does not recognize
+
+                        Regex rgx = new("[^a-zA-Z0-9 ,]");
+                        cCost = rgx.Replace(cCost, "");
+                        Console.WriteLine("   -Current discount: -" + cCost);
+                        var negatedCost = decimal.Parse(cCost, new CultureInfo("fi", true)) * -1;
+                        productDictionary[previousProduct.Id].Cost = negatedCost;
+
+                        Console.WriteLine("  -New cost: " + productDictionary[previousProduct.Id].Cost);
+
+
+                        //productDictionary.Add(currentProduct.Id, currentProduct);
+                        //previousProduct = currentProduct;
+
+
+                        c++;
                     }
                 }
+
+                // Handle any remaining items in cost list (all discounts that are after the last product that AI recognizes)
+                while (c < productCostList.Count -1)
+                {
+                    var cCost = productCostList[c];
+
+                    Regex rgx = new("[^a-zA-Z0-9 ,]");
+                    cCost = rgx.Replace(cCost, "");
+                    Console.WriteLine("   -Current discount: -" + cCost);
+                    var negatedCost = decimal.Parse(cCost, new CultureInfo("fi", true)) * -1;
+                    productDictionary[previousProduct.Id].Cost = negatedCost;
+
+                    Console.WriteLine(" - New cost: " + productDictionary[previousProduct.Id].Cost);
+
+                    c++;
+                }
+                receipt.Products = productDictionary.Select(p => p.Value).ToList();
+
+                var totalCost = decimal.Parse(productCostList[c], new CultureInfo("fi", true));
+                Console.WriteLine("Total cost: " + totalCost.ToString());
+
+                // Set and verify receipt total cost
+                receipt.RawTotalCost = decimal.Parse(document.Fields["Total"].Content, new CultureInfo("fi", true));
+                var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                if (calculatedTotalCost != receipt.RawTotalCost && calculatedTotalCost != totalCost)
+                {
+                    throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                }
+
+                return receipt;
+
+
+
+                foreach (DocumentField productField in receiptItems)
+                {
+                    IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
+
+                    var currentProductCostString = productData["TotalPrice"].Content;
+                    var currentProduct = new Product
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = productData["Description"].Value.AsString(),
+                        Cost = decimal.Parse(currentProductCostString, new CultureInfo("fi", true))
+                    };
+
+                    string lastNumberInContent = ExtractLastNumber(productField.Content, currentProductCostString);
+
+                    // Check if the AI recognized product field contains also the discount (it sometimes recognizes discounts as separate product but not always...)
+                    if (lastNumberInContent != currentProductCostString)
+                    {
+                        var originalCost = currentProduct.Cost;
+                        var discount = decimal.Parse(lastNumberInContent, new CultureInfo("fi", true));
+
+                        currentProduct.Cost = discount;
+                    }
+
+                    // Not sure if this is needed
+                    if (currentProductCostString.Contains('-'))
+                    {
+                        //Regex rgx = new("[^a-zA-Z0-9 ,]");
+                        //currentProductCost = rgx.Replace(currentProductCost, "");
+                        //var negatedCost = decimal.Parse(currentProductCost, new CultureInfo("fi", true)) * -1;
+                        //productDictionary[previousProduct.Id].Cost = negatedCost;
+                        //continue;
+                    }
+
+                    if (currentProduct.Name.Contains("PANTTI") && !currentProductCostString.Contains('-'))
+                    {
+                        productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
+                        continue;
+                    }
+
+                    //currentProduct.Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
+
+                    productDictionary.Add(currentProduct.Id, currentProduct);
+                    previousProduct = currentProduct;
+                }
+                receipt.Products = productDictionary.Select(p => p.Value).ToList();
+
+
+                // Set and verify receipt total cost
+                //receipt.RawTotalCost = decimal.Parse(document.Fields["Total"].Content, new CultureInfo("fi", true));
+                //var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                //if (calculatedTotalCost != receipt.RawTotalCost)
+                //{
+                //    throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                //}
+
             }
             return receipt;
         }
