@@ -15,6 +15,7 @@ using System.Web;
 using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.IO;
+using static System.Net.WebRequestMethods;
 
 namespace KuittiBot.Functions.Services
 {
@@ -24,6 +25,9 @@ namespace KuittiBot.Functions.Services
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
         private IReceiptParsingService _receiptParsingService;
+        private Stream _stream = new MemoryStream();
+        private string _fileId;
+        private string _documentType;
 
         public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptParsingService receiptParsingService)
         {
@@ -37,10 +41,12 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
-            var documentType = update.Message?.Document?.MimeType ?? "application/jpg";
-            var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
+            //var _documentType = update.Message?.Document?.MimeType ?? "application/jpg";
+            //var _fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
+            _documentType = update.Message?.Document?.MimeType ?? "application/jpg";
+            _fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
 
-            var receipt = await DownloadReceiptPdf(fileId, documentType);
+            var receipt = await DownloadReceiptPdf(_fileId, _documentType);
 
             List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
@@ -76,7 +82,7 @@ namespace KuittiBot.Functions.Services
 
             string response = isLocal ? "Function is running on local environment." : "Function is running on Azure.";
 
-            Stream stream = new MemoryStream();
+            //Stream _stream = new MemoryStream();
 
             if (isLocal)
             {
@@ -84,26 +90,26 @@ namespace KuittiBot.Functions.Services
                 var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\Kuittibot_v3_testikuitti_kmarket.jpeg"; //Kuittibot_v3_testikuitti_kmarket.jpeg
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
-                    fs.CopyTo(stream);
+                    fs.CopyTo(_stream);
                 }
             }
             else
             {
                 _ = await _botClient.GetInfoAndDownloadFileAsync(
                     fileId: fileId,
-                    destination: stream);
+                    destination: _stream);
 
-                stream.Position = 0;
+                //stream.Position = 0;
 
-                var uploader = new AzureBlobUploader();
-                await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
+                //var uploader = new AzureBlobUploader();
+                //await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
             }
 
-            stream.Position = 0;
+            _stream.Position = 0;
 
             Receipt receipt = new Receipt();
 
-            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(_stream);
 
 
 
@@ -179,6 +185,11 @@ namespace KuittiBot.Functions.Services
                 return;
 
             if (!(update.Message is { } message)) return;
+
+            _stream.Position = 0;
+
+            var uploader = new AzureBlobUploader();
+            await uploader.UploadFileStreamAsync("kuittibot-training", _fileId + (_documentType == "application/jpg" ? ".jpg" : ".pdf"), _stream, _documentType);
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
             await _botClient.SendTextMessageAsync(
