@@ -11,6 +11,7 @@ using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure;
 using System.Net;
 using Azure.Storage.Blobs.Models;
+using Microsoft.AspNetCore.Http;
 
 namespace KuittiBot.Functions.Services
 {
@@ -56,26 +57,38 @@ namespace KuittiBot.Functions.Services
                     IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
 
                     var currentProductCostString = productData["TotalPrice"].Content;
-                    var currentProduct = new Product
+                    try
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        Name = productData["Description"].Value.AsString(),
-                        Cost = decimal.Parse(currentProductCostString, new CultureInfo("fi", true))
-                    };
+                        var currentProduct = new Product
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Name = productData["Description"].Value.AsString(),
+                            Cost = ParseDecimalCost(currentProductCostString)
+                        };
 
-                    if (productData.ContainsKey("Discount"))
+                        if (productData.ContainsKey("Discount"))
+                        {
+                            var discountsRaw = productData["Discount"].Content;
+                            currentProduct.Discounts = ConvertToDecimalList(discountsRaw, "\n");
+                        }
+
+                        products.Add(currentProduct);
+                    } 
+                    catch (Exception e)
                     {
-                        var discountsRaw = productData["Discount"].Content;
-                        currentProduct.Discounts = ConvertToDecimalList(discountsRaw, "\n");
+                        throw new Exception($"Problems with product: '{productData["Description"].Value.AsString()}'", e);
                     }
 
-                    var total = currentProduct.Cost;
-
-                    products.Add(currentProduct);
                 }
                 receipt.Products = products;
 
-
+                // Set and verify receipt total cost
+                receipt.RawTotalCost = ParseDecimalCost(document.Fields["Total"].Content);
+                var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                if (calculatedTotalCost != receipt.RawTotalCost)
+                {
+                    throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                }
                 // Set and verify receipt total cost
                 //receipt.RawTotalCost = decimal.Parse(document.Fields["Total"].Content, new CultureInfo("fi", true));
                 //var calculatedTotalCost = receipt.GetReceiptTotalCost();
@@ -87,7 +100,17 @@ namespace KuittiBot.Functions.Services
             }
             return receipt;
         }
-        
+
+        static decimal ParseDecimalCost(string costString)
+        {
+            // Replace dot with comma if present
+            if (costString.Contains('.'))
+            {
+                costString = costString.Replace('.', ',');
+            }
+            return decimal.Parse(costString, new CultureInfo("fi", true));
+        }
+
         private static List<decimal> ConvertToDecimalList(string input, string delimeter)
         {
             List<decimal> resultList = new List<decimal>();
