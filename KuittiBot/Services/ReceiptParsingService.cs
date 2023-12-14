@@ -56,9 +56,9 @@ namespace KuittiBot.Functions.Services
                 {
                     IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
 
-                    var currentProductCostString = productData["TotalPrice"].Content;
                     try
                     {
+                        var currentProductCostString = productData["TotalPrice"].Content;
                         var currentProduct = new Product
                         {
                             Id = Guid.NewGuid().ToString(),
