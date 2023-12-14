@@ -126,7 +126,7 @@ namespace KuittiBot.Functions.Services
 
         private static decimal RemoveMinusSignFromNumber(string number)
         {
-            return decimal.Parse(number.Replace("-", string.Empty)) * -1;
+            return decimal.Parse(number.Replace("-", string.Empty), new CultureInfo("fi", true)) * -1;
         }
 
 

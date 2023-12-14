@@ -81,7 +81,7 @@ namespace KuittiBot.Functions.Services
             if (isLocal)
             {
                 //test document
-                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\Kuittibot_v3_testikuitti_pitka.jpg"; //Kuittibot_v3_testikuitti_kmarket.jpeg
+                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\Kuittibot_v3_testikuitti_kmarket.jpeg"; //Kuittibot_v3_testikuitti_kmarket.jpeg
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
                     fs.CopyTo(stream);
