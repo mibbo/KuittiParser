@@ -9,6 +9,8 @@ using System.Globalization;
 using KuittiBot.Functions.Domain.Abstractions;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure;
+using System.Net;
+using Azure.Storage.Blobs.Models;
 
 namespace KuittiBot.Functions.Services
 {
@@ -26,6 +28,86 @@ namespace KuittiBot.Functions.Services
         }
 
         public async Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream)
+        {
+
+            DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
+
+
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v3", stream);
+
+            AnalyzeResult result = operation.Value;
+
+            List<string> lines = result.Pages.FirstOrDefault().Lines.Select(x => x.Content).ToList();
+
+            var receipt = new Receipt();
+
+            for (int i = 0; i < result.Documents.Count; i++)
+            {
+                AnalyzedDocument document = result.Documents[i];
+
+                receipt.ShopName = document.Fields["MerchantName"].Value.AsString();
+
+                List<Product> products = new List<Product>();
+
+                var receiptItems = document.Fields["Items"].Value.AsList();
+
+                foreach (DocumentField productField in receiptItems)
+                {
+                    IReadOnlyDictionary<string, DocumentField> productData = productField.Value.AsDictionary();
+
+                    var currentProductCostString = productData["TotalPrice"].Content;
+                    var currentProduct = new Product
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = productData["Description"].Value.AsString(),
+                        Cost = decimal.Parse(currentProductCostString, new CultureInfo("fi", true))
+                    };
+
+                    if (productData.ContainsKey("Discount"))
+                    {
+                        var discountsRaw = productData["Discount"].Content;
+                        currentProduct.Discounts = ConvertToDecimalList(discountsRaw, "\n");
+                    }
+
+                    var total = currentProduct.Cost;
+
+                    products.Add(currentProduct);
+                }
+                receipt.Products = products;
+
+
+                // Set and verify receipt total cost
+                //receipt.RawTotalCost = decimal.Parse(document.Fields["Total"].Content, new CultureInfo("fi", true));
+                //var calculatedTotalCost = receipt.GetReceiptTotalCost();
+                //if (calculatedTotalCost != receipt.RawTotalCost)
+                //{
+                //    throw new Exception($"Error: Something went wrong during the product parsing. Program calculated total cost is '{calculatedTotalCost}' when the actual cost in the receipt is '{receipt.RawTotalCost}'");
+                //}
+
+            }
+            return receipt;
+        }
+        
+        private static List<decimal> ConvertToDecimalList(string input, string delimeter)
+        {
+            List<decimal> resultList = new List<decimal>();
+
+            var discountsRaw = input.Replace(" ", string.Empty);
+            var discounts = discountsRaw.Split(delimeter).ToList();
+            foreach (var discount in discounts)
+            {
+                resultList.Add(RemoveMinusSignFromNumber(discount));
+            }
+            return resultList;
+        }
+
+        private static decimal RemoveMinusSignFromNumber(string number)
+        {
+            return decimal.Parse(number.Replace("-", string.Empty)) * -1;
+        }
+
+
+        public async Task<Receipt> ParseProductsFromReceiptImageAsync_old(Stream stream)
         {
 
             //AzureKeyCredential credential = new AzureKeyCredential(_aiKey);

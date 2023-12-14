@@ -55,12 +55,22 @@ namespace KuittiBot.Functions.Domain.Models
         public string Id { get; set; }
         public string Name { get; set; }
         public decimal? DividedCost { get; set; }
+        public List<decimal>? Discounts { get; set; }
         private decimal costField;
         public decimal Cost
         {
             get
             {
-                return this.costField;
+                var costAfterDiscounts = this.costField;
+                if (Discounts != null)
+                {
+                    foreach (var discount in Discounts)
+                    {
+                        costAfterDiscounts += discount;
+                    }
+                }
+
+                return costAfterDiscounts;
             }
             set
             {

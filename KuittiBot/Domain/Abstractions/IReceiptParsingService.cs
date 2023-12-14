@@ -12,6 +12,7 @@ namespace KuittiBot.Functions.Domain.Abstractions
     {
         Receipt ParseProductsFromReceiptPdf(Stream stream);
         Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream);
+        Task<Receipt> ParseProductsFromReceiptImageAsync_old(Stream stream);
 
     }
 }

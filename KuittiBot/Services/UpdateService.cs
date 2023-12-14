@@ -81,7 +81,7 @@ namespace KuittiBot.Functions.Services
             if (isLocal)
             {
                 //test document
-                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\msg5909494318-95241.jpg"; //testikuitti_kcitymarket.pdf
+                var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\testikuitti.pdf"; //Kuittibot_v3_testikuitti_kmarket.jpeg
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
                     fs.CopyTo(stream);
@@ -92,23 +92,29 @@ namespace KuittiBot.Functions.Services
                 _ = await _botClient.GetInfoAndDownloadFileAsync(
                     fileId: fileId,
                     destination: stream);
+
+                stream.Position = 0;
+
+                var uploader = new AzureBlobUploader();
+                await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
             }
 
             stream.Position = 0;
 
-            var uploader = new AzureBlobUploader();
-            await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
-
             Receipt receipt = new Receipt();
 
-            if (documentType == "application/pdf")
-            {
-                receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
-            }
-            if (documentType == "application/jpg")
-            {
-                //receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
-            }
+            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+
+
+
+            //if (documentType == "application/pdf")
+            //{
+            //    receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
+            //}
+            //if (documentType == "application/jpg")
+            //{
+            //    receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+            //}
 
             return receipt;
         }
