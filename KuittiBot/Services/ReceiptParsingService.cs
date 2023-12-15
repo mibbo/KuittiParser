@@ -49,9 +49,11 @@ namespace KuittiBot.Functions.Services
 
                 receipt.ShopName = document.Fields["MerchantName"].Value.AsString();
 
-                List<Product> products = new List<Product>();
 
                 var receiptItems = document.Fields["Items"].Value.AsList();
+
+                Dictionary<string, Product> productDictionary = new Dictionary<string, Product>();
+                var previousProduct = new Product();
 
                 foreach (DocumentField productField in receiptItems)
                 {
@@ -73,7 +75,18 @@ namespace KuittiBot.Functions.Services
                             currentProduct.Discounts = ConvertToDecimalList(discountsRaw, "\n");
                         }
 
-                        products.Add(currentProduct);
+                        if (currentProduct.Name.Contains("PANTTI") && !currentProductCostString.Contains('-'))
+                        {
+                            productDictionary[previousProduct.Id].Name = productDictionary[previousProduct.Id].Name + $" (sis. PANTTI {currentProduct.Cost})";
+                            productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
+                            continue;
+                        }
+
+                        //currentProduct.Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
+
+                        productDictionary.Add(currentProduct.Id, currentProduct);
+                        previousProduct = currentProduct;
+
                     } 
                     catch (Exception e)
                     {
@@ -81,7 +94,7 @@ namespace KuittiBot.Functions.Services
                     }
 
                 }
-                receipt.Products = products;
+                receipt.Products = productDictionary.Select(p => p.Value).ToList();
 
                 // Set and verify receipt total cost
                 receipt.RawTotalCost = ParseDecimalCost(document.Fields["Total"].Content);
