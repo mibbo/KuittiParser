@@ -30,6 +30,7 @@ namespace KuittiBot.Functions.Services
 
         public async Task<Receipt> ParseProductsFromReceiptImageAsync(Stream stream)
         {
+            stream.Position = 0;
 
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
 

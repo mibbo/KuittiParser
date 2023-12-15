@@ -42,7 +42,7 @@ namespace KuittiBot.Functions
             builder.Services.AddSingleton<BotStateMachine>();
             builder.Services.AddSingleton<IBotStateMachine>(provider => provider.GetRequiredService<BotStateMachine>());
 
-            // Tablestorage
+            // UserDataCache
             builder.Services.AddSingleton<IUserDataCache, UserDataCache>();
             builder.Services.AddSingleton<ITableDataStore<UserDataCacheEntity>, TableDataStore<UserDataCacheEntity>>(sp =>
                 new TableDataStore<UserDataCacheEntity>(
@@ -54,6 +54,20 @@ namespace KuittiBot.Functions
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
                 partitionKeyProperty: nameof(UserDataCacheEntity.Id),
                 rowKeyProperty: nameof(UserDataCacheEntity.FileName))
+            );
+
+            // FileHashCache
+            builder.Services.AddSingleton<IFileHashCache, FileHashCache>();
+            builder.Services.AddSingleton<ITableDataStore<FileHashEntity>, TableDataStore<FileHashEntity>>(sp =>
+                new TableDataStore<FileHashEntity>(
+                Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
+                "filehashcache",
+                true,
+                "filehashcache",
+                true,
+                Azure.Storage.Blobs.Models.PublicAccessType.None,
+                partitionKeyProperty: nameof(FileHashEntity.FileName),
+                rowKeyProperty: nameof(FileHashEntity.Hash))
             );
 
             // TODO blobstorage

@@ -15,6 +15,8 @@ using System.Web;
 using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.IO;
+using System.Text;
+using System.Security.Cryptography;
 
 namespace KuittiBot.Functions.Services
 {
@@ -23,13 +25,18 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
+        private IFileHashCache _fileHashCache;
         private IReceiptParsingService _receiptParsingService;
+        private static string _fileName;
+        private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptParsingService receiptParsingService)
+
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IFileHashCache fileHashCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
+            _fileHashCache = fileHashCache;
             _receiptParsingService = receiptParsingService;
         }
 
@@ -37,54 +44,52 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
-            var documentType = update.Message?.Document?.MimeType ?? "application/jpg";
-            var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
+            var stream = await DownloadFileAsync(update);
+            await UploadFileIfDoesNotExist(update, stream);
 
-            var receipt = await DownloadReceiptPdf(fileId, documentType);
+            Receipt receipt = new Receipt();
+            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
 
-            List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
-            var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
-            Console.WriteLine(str);
-
-            await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"Tässä kuitin ostokset: \n{str}",
-                parseMode: ParseMode.Html);
-
-
-
-            //var newUser = new UserDataCacheEntity()
-            //{
-            //    Id = update.Message.From.Id.ToString(),
-            //    FileName = update.Message.Document.FileName,
-            //    FileId = update.Message.Document.FileId,
-            //    UserName = update.Message.From.Username
-            //};
-
-            //await _userDataCache.UpdateUserStateAsync(newUser);
+            await PrintReceiptToUser(update, receipt);
         }
 
 
-
-        //var fileId = update.Message.Document.FileId;
-        //var stream = await DownloadReceipt(fileId);
-        private async Task<Receipt> DownloadReceiptPdf(string fileId, string documentType)
+        private async Task UploadFileIfDoesNotExist(Update update, Stream stream)
         {
-            //var fileInfo = await _botClient.GetFileAsync(fileId);
+            stream.Position = 0;
 
-            bool isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
+            var documentType = update.Message?.Document?.MimeType ?? "application/jpg";
 
-            string response = isLocal ? "Function is running on local environment." : "Function is running on Azure.";
+            var uploader = new AzureBlobUploader();
+
+            var fileHash = ComputeHash(stream);
+            _fileName = fileHash + (documentType == "application/jpg" ? ".jpg" : ".pdf");
+
+            var checkIfHashExists = await _fileHashCache.GetFileByHash(fileHash);
+            if (checkIfHashExists == null)
+            {
+                await uploader.UploadFileStreamAsync("receipt-cache", _fileName, stream, documentType);
+                await _fileHashCache.InsertFileHashAsync(_fileName, fileHash);
+            }
+        }
+
+
+        private async Task<Stream> DownloadFileAsync(Update update)
+        {
+            var fileId = update.Message?.Document?.FileId ?? update.Message.Photo.LastOrDefault().FileId;
+
+            string response = _isLocal ? "Function is running on local environment." : "Function is running on Azure.";
+            Console.WriteLine(response);
 
             Stream stream = new MemoryStream();
 
-            if (isLocal)
+            if (_isLocal)
             {
                 //test document
                 var path = @"C:\Users\tommi.mikkola\git\Projektit\KuittiParser\KuittiParses.Console\Kuitit\Kuittibot_v3_testikuitti_kmarket.jpeg"; //Kuittibot_v3_testikuitti_kmarket.jpeg
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
-                    fs.CopyTo(stream);
+                    await fs.CopyToAsync(stream);
                 }
             }
             else
@@ -92,33 +97,32 @@ namespace KuittiBot.Functions.Services
                 _ = await _botClient.GetInfoAndDownloadFileAsync(
                     fileId: fileId,
                     destination: stream);
-
-                stream.Position = 0;
-
-                var uploader = new AzureBlobUploader();
-                await uploader.UploadFileStreamAsync("kuittibot-training", fileId + (documentType == "application/jpg" ? ".jpg" : ".pdf"), stream, documentType);
             }
 
-            stream.Position = 0;
-
-            Receipt receipt = new Receipt();
-
-            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
-
-
-
-            //if (documentType == "application/pdf")
-            //{
-            //    receipt = _receiptParsingService.ParseProductsFromReceiptPdf(stream);
-            //}
-            //if (documentType == "application/jpg")
-            //{
-            //    receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
-            //}
-
-            return receipt;
+            return stream;
         }
 
+
+        private static string ComputeHash(Stream stream)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                // Reset the position of the stream to ensure it's read from the start
+                stream.Position = 0;
+
+                // Compute the hash of the stream
+                byte[] hash = sha256.ComputeHash(stream);
+
+                // Convert the byte array to a hexadecimal string
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in hash)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+
+                return sb.ToString();
+            }
+        }
 
 
         public async Task WelcomeUser(Update update)
@@ -141,6 +145,19 @@ namespace KuittiBot.Functions.Services
             //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
         }
 
+        public async Task PrintReceiptToUser(Update update, Receipt receipt)
+        {
+            if (!(update.Message is { } message)) return;
+            
+            List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
+            var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
+            Console.WriteLine(str);
+
+            await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"Tässä kuitin ostokset: \n{str}",
+                parseMode: ParseMode.Html);
+        }
 
 
         public async Task SayHello(Update update)
@@ -171,6 +188,7 @@ namespace KuittiBot.Functions.Services
             //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
         }
 
+
         public async Task LogError(Update update, Exception exception)
         {
             _logger.LogInformation("Invoke telegram update function");
@@ -180,12 +198,29 @@ namespace KuittiBot.Functions.Services
 
             if (!(update.Message is { } message)) return;
 
-            _logger.LogInformation("Received Message from {0}", message.Chat.Id);
-            await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"Voi jummijammi {message.From.FirstName ?? message.From.Username}! \n" +
-                      $"Tuli tämmönen errori: \n" + exception.Message);
+            if (!_isLocal)
+            {
+                var uploader = new AzureBlobUploader();
+
+
+                var fileWasCopied = await uploader.CopyFileToAnotherContainer("receipt-cache", "kuittibot-training", _fileName);
+
+                if (fileWasCopied)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: $"Tiedosto '{_fileName}' siirrettiin training dataan");
+                } 
+
+                _logger.LogInformation("Received Message from {0}", message.Chat.Id);
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"Voi jummijammi {message.From.FirstName ?? message.From.Username}! \n" +
+                          $"Tuli tämmönen errori: \n" + exception.Message);
+            }
+
         }
+
 
         public static InlineKeyboardMarkup CreateButton()
         {
