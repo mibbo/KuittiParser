@@ -70,6 +70,7 @@ namespace KuittiBot.Functions
                 rowKeyProperty: nameof(FileHashEntity.Hash))
             );
 
+
             // TODO blobstorage
             //builder.Services.AddTransient<IStorage<SendPurchaseOrders.RecipeStorage>,
             //    BlobStorage<SendPurchaseOrders.RecipeStorage>>());

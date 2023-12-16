@@ -17,6 +17,11 @@ using System.Net;
 using System.IO;
 using System.Text;
 using System.Security.Cryptography;
+using OpenAI;
+using Azure;
+using OpenAI.Chat;
+using OpenAI.Models;
+using Message = OpenAI.Chat.Message;
 
 namespace KuittiBot.Functions.Services
 {
@@ -30,7 +35,7 @@ namespace KuittiBot.Functions.Services
         private static string _fileName;
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
-
+        private readonly OpenAIClient _openAiClient;
 
         public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IFileHashCache fileHashCache, IReceiptParsingService receiptParsingService)
         {
@@ -39,6 +44,7 @@ namespace KuittiBot.Functions.Services
             _userDataCache = userDataCache;
             _fileHashCache = fileHashCache;
             _receiptParsingService = receiptParsingService;
+            _openAiClient = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
         }
 
             public async Task InitializeParseingForUser(Update update)
@@ -139,7 +145,6 @@ namespace KuittiBot.Functions.Services
                       $"Parseen sun kuitin bro!");
 
 
-
             //await _botClient.SendTextMessageAsync(
             //    chatId: message.Chat.Id,
             //    text: "Hell yeah",
@@ -154,9 +159,24 @@ namespace KuittiBot.Functions.Services
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
             Console.WriteLine(str);
 
+            var messages = new List<Message>
+                {
+                    new Message(Role.System, "Toimi luovana ja karismaattisena keskustelukumppanina, joka arvostelee ja kritisoi muiden ihmisten ostoksia. Tehtävänäsi on olla ankara kriitikko ostoksilleni. Selitä omin sanoin, miksi ostokseni ovat hyviä tai huonoja. Haluan, että vakuutat minut siitä, miksi minun tulisi parantaa ostoksiani. Tee siitä jotenkin hauskaa. Mutta pidä se lyhyenä ja shokeeraavana. Älä kerro minulle, että yrität olla hauska tai shokeeraava. Haluan, että arvostelet ja tuomitset seuraavat ostokseni, jotka annan sinulle seuraavassa kehotteessa. Anna vastaus maksimissaa kolmella lauseella."),
+                    new Message(Role.User, $"Hei katso miten hienoja ostoksia tein: {str}")
+                };
+            var chatRequest = new ChatRequest(messages, Model.GPT3_5_Turbo);
+            var response = await _openAiClient.ChatEndpoint.GetCompletionAsync(chatRequest);
+            var choice = response.FirstChoice;
+            Console.WriteLine($"[{choice.Index}] {choice.Message.Role}: {choice.Message} | Finish Reason: {choice.FinishReason}");
+
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"Tässä kuitin ostokset: \n{str}",
+                parseMode: ParseMode.Html);
+
+            await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: choice.Message,
                 parseMode: ParseMode.Html);
         }
 

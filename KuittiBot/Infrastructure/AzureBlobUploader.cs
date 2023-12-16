@@ -37,17 +37,25 @@ public class AzureBlobUploader
 
             var blobClient = containerClient.GetBlobClient(fileName);
 
-            // Set the ContentType if provided, else default to "application/octet-stream"
-            var blobHttpHeader = new Azure.Storage.Blobs.Models.BlobHttpHeaders
+            // Check if the destination blob already exists
+            if (await blobClient.ExistsAsync())
             {
-                ContentType = mimeType ?? "application/octet-stream"
-            };
+                Console.WriteLine($"The file '{fileName}' already exists in the destination container '{containerName}'.");
+            }
+            else
+            {
+                // Set the ContentType if provided, else default to "application/octet-stream"
+                var blobHttpHeader = new Azure.Storage.Blobs.Models.BlobHttpHeaders
+                {
+                    ContentType = mimeType ?? "application/octet-stream"
+                };
 
-            stream.Position = 0;
-            await blobClient.UploadAsync(stream, new Azure.Storage.Blobs.Models.BlobUploadOptions
-            {
-                HttpHeaders = blobHttpHeader
-            });
+                stream.Position = 0;
+                await blobClient.UploadAsync(stream, new Azure.Storage.Blobs.Models.BlobUploadOptions
+                {
+                    HttpHeaders = blobHttpHeader
+                });
+            }
         }
         catch (Exception ex)
         {
