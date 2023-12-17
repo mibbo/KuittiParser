@@ -91,7 +91,7 @@ namespace KuittiBot.Functions.Services
                 FileName = _currentUser.FileName,
                 FileId = _currentUser.FileId,
                 Hash = _currentUser.Hash,
-                Confidence = _currentUser.Confidence.ToString(),
+                Confidence = _currentUser.Confidence.ToString("0.0000"),
                 SuccessFullyParsed = false
             };
 
