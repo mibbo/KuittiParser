@@ -86,19 +86,18 @@ namespace KuittiBot.Functions.Infrastructure
         }
 
 
-        //public async Task<int> GetCount(string userId)
-        //{
-        //    try
-        //    {
-        //        Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
-        //        var user = await _tableDataStore.FindAsync(query);
-        //        return user.ToList().Count()+1;
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        throw new Exception($"Retrieving user id '{userId}' from property cache table failed: " + e.Message, e);
-        //    }
-        //}
+        public async Task<IList<UserDataCacheEntity>> GetAllUsers()
+        {
+            try
+            {
+                var users = await _tableDataStore.ListAsync();
+                return users;
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Retrieving users from user cache table failed: " + e.Message, e);
+            }
+        }
 
         //public async Task DeleteAsync(string kohdetunnus)
         //{

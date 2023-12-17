@@ -79,7 +79,6 @@ namespace KuittiBot.Functions
                 {
                     await _stateMachine.OnUpdate(update);
                 }
-                await _updateService.WelcomeUser(update);
 
                 return new OkResult();
             }

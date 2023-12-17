@@ -18,6 +18,7 @@ namespace KuittiBot.Functions.Services
         private readonly UpdateService _updateService;
         private IUserDataCache _userDataCache;
         private readonly List<StateTransition> _transitions = new List<StateTransition>();
+        private static bool _isNewUser;
 
         public BotStateMachine(UpdateService updateService, IUserDataCache userDataCache)
         {
@@ -29,7 +30,7 @@ namespace KuittiBot.Functions.Services
         private void InitializeTransitions()
         {
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
-            //_transitions.Add(new StateTransition { CurrentState = BotState.ReceivingReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AskingParticipants, Action = AskParticipants });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedTextMessage, NextState = BotState.ReceivingReceipt, Action = PrintCommand });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
@@ -56,10 +57,7 @@ namespace KuittiBot.Functions.Services
                     CurrentState = BotState.WaitingForInput 
                 };
 
-            if (userFromCache == null)
-            {
-                await _updateService.WelcomeUser(update);
-            }
+
 
             // Determine event and find transition
             var botEvent = DetermineEvent(update);
@@ -103,6 +101,19 @@ namespace KuittiBot.Functions.Services
             await _updateService.InitializeParseingForUser(update);
         }
 
+        private async Task PrintCommand(Update update)
+        {
+            // Implement logic to handle receipt
+            if (_isNewUser)
+            {
+                await _updateService.WelcomeUser(update);
+            }
+
+            if (update.Message.Text == "/top10")
+            {
+                await _updateService.PrintLeaderboard(update);
+            }
+        }
         //private Task AskParticipants(Update update)
         //{
         //    // Implement logic to ask for participants' names

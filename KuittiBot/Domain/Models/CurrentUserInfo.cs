@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace KuittiBot.Functions.Domain.Models
 {
-    public class CurrentUserInfo
+    public class UserSessionInfo
     {
         public string UserId { get; set; }
         public string UserName { get; set; }
@@ -16,6 +16,6 @@ namespace KuittiBot.Functions.Domain.Models
         public string Hash { get; set; }
         public string FileId { get; set; }
         public string DocumentType { get; set; }
-
+        public string Confidence { get; set; }
     }
 }

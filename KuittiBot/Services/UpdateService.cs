@@ -36,7 +36,7 @@ namespace KuittiBot.Functions.Services
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
-        private CurrentUserInfo _currentUser;
+        private UserSessionInfo _currentUser;
 
         public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IUserFileInfoCache userFileInfoCache, IReceiptParsingService receiptParsingService)
         {
@@ -52,7 +52,7 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
-            _currentUser = new CurrentUserInfo() 
+            _currentUser = new UserSessionInfo() 
             {
                 UserId = message.From.Id.ToString(),
                 FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId
@@ -160,6 +160,42 @@ namespace KuittiBot.Functions.Services
                 chatId: message.Chat.Id,
                 text: $"Moro {message.From.FirstName ?? message.From.Username}! \n" +
                       $"Parseen sun kuitin bro!");
+            }
+
+
+
+            //await _botClient.SendTextMessageAsync(
+            //    chatId: message.Chat.Id,
+            //    text: "Hell yeah",
+            //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
+        }
+
+        public async Task PrintLeaderboard(Update update)
+        {
+            if (!(update.Message is { } message)) return;
+
+            var leaderboard = new Dictionary<string, int>();
+
+            var allUsers = await _userDataCache.GetAllUsers();
+            foreach (var user in allUsers)
+            {
+                var fileCount = await _userFileInfoCache.GetFileCountByUserId(user.Id);
+
+                leaderboard.Add(user.UserName, fileCount);
+            }
+
+            // Sort the dictionary and take the top 10 users
+            var topUsers = leaderboard.OrderByDescending(pair => pair.Value).Take(10);
+            // Create the formatted string
+            var leaderboardToPrint = string.Join("\n", topUsers.Select(userinfo => $"{userinfo.Key}: {userinfo.Value}"));
+
+            Console.WriteLine($"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
+
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
             }
 
             //await _botClient.SendTextMessageAsync(

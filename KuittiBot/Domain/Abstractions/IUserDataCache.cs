@@ -14,7 +14,7 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task UpdateUserAsync(UserDataCacheEntity user);
         Task<UserDataCacheEntity> GetUserByIdAsync(string userId);
         Task<string> GetUserStateByIdAsync(string userId);
-        //Task<int> GetCount(string userId);
+        Task<IList<UserDataCacheEntity>> GetAllUsers();
         //Task DeleteAsync(string kohdetunnus);
     }
 }
