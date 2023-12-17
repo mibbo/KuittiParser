@@ -53,21 +53,21 @@ namespace KuittiBot.Functions
                 true,
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
                 partitionKeyProperty: nameof(UserDataCacheEntity.Id),
-                rowKeyProperty: nameof(UserDataCacheEntity.FileName))
+                rowKeyProperty: nameof(UserDataCacheEntity.UserName))
             );
 
             // FileHashCache
-            builder.Services.AddSingleton<IFileHashCache, FileHashCache>();
-            builder.Services.AddSingleton<ITableDataStore<FileHashEntity>, TableDataStore<FileHashEntity>>(sp =>
-                new TableDataStore<FileHashEntity>(
+            builder.Services.AddSingleton<IUserFileInfoCache, UserFileInfoCache>();
+            builder.Services.AddSingleton<ITableDataStore<UserFileInfoEntity>, TableDataStore<UserFileInfoEntity>>(sp =>
+                new TableDataStore<UserFileInfoEntity>(
                 Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
-                "filehashcache",
+                "userfileinfocache",
                 true,
-                "filehashcache",
+                "userfileinfocache",
                 true,
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
-                partitionKeyProperty: nameof(FileHashEntity.FileName),
-                rowKeyProperty: nameof(FileHashEntity.Hash))
+                partitionKeyProperty: nameof(UserFileInfoEntity.UserId),
+                rowKeyProperty: nameof(UserFileInfoEntity.Hash))
             );
 
 

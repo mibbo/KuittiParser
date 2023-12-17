@@ -35,23 +35,7 @@ namespace KuittiBot.Functions.Services
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
         }
 
-        public async Task<UserDataCacheEntity> GetUserStateAsync(string userId)
-        {
-            try
-            {
-                var userFromCache = await _userDataCache.GetUserById(userId);
-                return userFromCache;
-            }
-            catch (RequestFailedException e) when (e.Status == 404)
-            {
-                return null; // Entity not found
-            }
-        }
 
-        public async Task UpdateUserStateAsync(UserDataCacheEntity userState)
-        {
-            await _userDataCache.UpdateUserStateAsync(userState);
-        }
 
         public async Task OnUpdate(Update update)
         {
@@ -60,7 +44,11 @@ namespace KuittiBot.Functions.Services
                 return;
 
             var userId = message.From.Id.ToString();
-            var userState = await GetUserStateAsync(userId) ?? 
+
+            var userFromCache = await _userDataCache.GetUserByIdAsync(userId);
+            
+            // If no user found from cache -> Initialize new user
+            var user = userFromCache ?? 
                 new UserDataCacheEntity 
                 {
                     Id = userId,
@@ -68,19 +56,26 @@ namespace KuittiBot.Functions.Services
                     CurrentState = BotState.WaitingForInput 
                 };
 
+            if (userFromCache == null)
+            {
+                await _updateService.WelcomeUser(update);
+            }
+
             // Determine event and find transition
             var botEvent = DetermineEvent(update);
-            var transition = _transitions.FirstOrDefault(t => t.CurrentState == userState.CurrentState && t.Event == botEvent);
+            var transition = _transitions.FirstOrDefault(t => t.CurrentState == user.CurrentState && t.Event == botEvent);
 
             // If the transition is succesfull, initialize next stage for the session
             if (transition != null)
             {
-                userState.CurrentState = transition.NextState;
+                //user.CurrentState = transition.NextState;                 // DISABLED -> TODO next transition
+                user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition
+
+                await _userDataCache.UpdateUserAsync(user);
+
                 await transition.Action(update);
 
-                userState.FileName = update.Message.Document?.FileName ?? update.Message.Photo?.LastOrDefault().FileUniqueId;
-                userState.FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId;
-                //await UpdateUserStateAsync(userState); // Save updated state back to Table Storage
+                //await _userDataCache.UpdateUserAsync(user);
             }
         }
 

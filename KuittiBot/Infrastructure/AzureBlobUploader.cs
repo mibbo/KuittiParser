@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 public class AzureBlobUploader
 {
     private readonly string _connectionString;
-    private IFileHashCache _fileHashCache;
+    private IUserFileInfoCache _fileHashCache;
 
     // Constructor that uses the Azure Function's storage account
     public AzureBlobUploader()
@@ -25,7 +25,7 @@ public class AzureBlobUploader
         _connectionString = customConnectionString;
     }
 
-    public async Task UploadFileStreamAsync(string containerName, string fileName, Stream stream, string mimeType = null)
+    public async Task UploadFileStreamIfNotExistAsync(string containerName, string fileName, Stream stream, string mimeType = null)
     {
         try
         {
@@ -64,7 +64,7 @@ public class AzureBlobUploader
     }
 
     /// <returns>True if file was copied and false if not.</returns>
-    public async Task<bool> CopyFileToAnotherContainer(string sourceContainer, string destinationContainer, string fileName)
+    public async Task<bool> CopyFileToAnotherContainerIfNotExist(string sourceContainer, string destinationContainer, string fileName)
     {
         try
         {

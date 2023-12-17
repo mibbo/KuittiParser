@@ -37,7 +37,7 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        public async Task UpdateUserStateAsync(UserDataCacheEntity property)
+        public async Task UpdateUserAsync(UserDataCacheEntity property)
         {
             try
             {
@@ -55,7 +55,7 @@ namespace KuittiBot.Functions.Infrastructure
             await _tableDataStore.ListAsync(x => new { x.Id }, 1);
         }
 
-        public async Task<UserDataCacheEntity> GetUserById(string userId)
+        public async Task<UserDataCacheEntity> GetUserByIdAsync(string userId)
         {
             try
             {
@@ -65,9 +65,26 @@ namespace KuittiBot.Functions.Infrastructure
             }
             catch (Exception e)
             {
-                throw new Exception("Retrieving from property cache table failed: " + e.Message, e);
+                throw new Exception($"Retrieving user id '{userId}' from property cache table failed: " + e.Message, e);
             }
         }
+
+        public async Task<string> GetUserStateByIdAsync(string userId)
+        {
+            try
+            {
+                Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
+                var userFromStorage = await _tableDataStore.FindAsync(query);
+                var userIdFromStorage = userFromStorage.ToList().FirstOrDefault()?.Id;
+
+                return userIdFromStorage;
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Retrieving user id '{userId}' from property cache table failed: " + e.Message, e);
+            }
+        }
+
 
         //public async Task<int> GetCount(string userId)
         //{
@@ -79,7 +96,7 @@ namespace KuittiBot.Functions.Infrastructure
         //    }
         //    catch (Exception e)
         //    {
-        //        throw new Exception("Retrieving from property cache table failed: " + e.Message, e);
+        //        throw new Exception($"Retrieving user id '{userId}' from property cache table failed: " + e.Message, e);
         //    }
         //}
 

@@ -12,42 +12,36 @@ using System.Threading.Tasks;
 
 namespace KuittiBot.Functions.Infrastructure
 {
-    public class FileHashCache : IFileHashCache
+    public class UserFileInfoCache : IUserFileInfoCache
     {
-        private ILogger<FileHashCache> _logger;
-        private ITableDataStore<FileHashEntity> _tableDataStore;
+        private ILogger<UserFileInfoCache> _logger;
+        private ITableDataStore<UserFileInfoEntity> _tableDataStore;
 
-        public FileHashCache(
-            ITableDataStore<FileHashEntity> tableDataStore,
-            ILogger<FileHashCache> logger)
+        public UserFileInfoCache(
+            ITableDataStore<UserFileInfoEntity> tableDataStore,
+            ILogger<UserFileInfoCache> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _tableDataStore = tableDataStore;
         }
 
-        public async Task InsertFileHashAsync(string fileName, string hash)
+        public async Task InsertUserFileInfoIfNotExistAsync(UserFileInfoEntity entity)
         {
             try
             {
-                var entity = new FileHashEntity
-                {
-                    FileName = fileName,
-                    Hash = hash
-                };
-
                 var fileExistsWithSameHash = await GetFileByHash(entity.Hash);
 
                 if (fileExistsWithSameHash == null)
                 {
                     await _tableDataStore.InsertAsync(BatchingMode.None, entity);
-                    Console.WriteLine($"Writing file '{fileName}' in to the storage with the hash '{entity.Hash}'");
+                    Console.WriteLine($"Writing current file info '{entity.FileName}' in to the user file info storage'");
                 }
                 else
                 {
-                    Console.WriteLine($"The same hash for the File '{fileName}' already exists in the storage with filename '{fileExistsWithSameHash.FileName}'");
+                    Console.WriteLine($"The same hash for the File '{entity.FileName}' already exists in the storage with filename '{fileExistsWithSameHash.FileName}'");
                 }
             }
-            catch (AzureTableDataStoreSingleOperationException<FileHashEntity> e)
+            catch (AzureTableDataStoreSingleOperationException<UserFileInfoEntity> e)
             {
                 throw new Exception("Inserting into property cache table failed: " + e.Message, e);
             }
@@ -58,11 +52,25 @@ namespace KuittiBot.Functions.Infrastructure
             await _tableDataStore.ListAsync(x => new { x.FileName }, 1);
         }
 
-        public async Task<FileHashEntity> GetFileById(string fileName)
+        public async Task<int> GetFileCountByUserId(string userId)
         {
             try
             {
-                Expression<Func<FileHashEntity, bool>> query = file => file.FileName == fileName;
+                Expression<Func<UserFileInfoEntity, bool>> query = file => file.UserId == userId;
+                var file = await _tableDataStore.FindAsync(query);
+                return file.Count();
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Retrieving from property cache table failed: " + e.Message, e);
+            }
+        }
+
+        public async Task<UserFileInfoEntity> GetFileByHash(string hash)
+        {
+            try
+            {
+                Expression<Func<UserFileInfoEntity, bool>> query = file => file.Hash == hash;
                 var file = await _tableDataStore.FindAsync(query);
                 return file.ToList().FirstOrDefault();
             }
@@ -72,17 +80,29 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        public async Task<FileHashEntity> GetFileByHash(string hash)
+        public async Task UpdateSuccessState(string hash, bool successState)
         {
             try
             {
-                Expression<Func<FileHashEntity, bool>> query = file => file.Hash == hash;
-                var file = await _tableDataStore.FindAsync(query);
-                return file.ToList().FirstOrDefault();
+                Expression<Func<UserFileInfoEntity, bool>> query = file => file.Hash == hash;
+                var fileToUpdate = await _tableDataStore.FindAsync(query);
+                var entity = fileToUpdate.ToList().FirstOrDefault();
+
+                if (entity != null)
+                {
+                    entity.SuccessFullyParsed = successState;
+
+                    await _tableDataStore.InsertOrReplaceAsync(BatchingMode.None, entity);
+                    Console.WriteLine($"Updated SuccessFullyParsed for file '{entity.FileName}' to '{successState}'.");
+                }
+                else
+                {
+                    Console.WriteLine($"No file found with hash '{hash}' to update.");
+                }
             }
             catch (Exception e)
             {
-                throw new Exception("Retrieving from property cache table failed: " + e.Message, e);
+                throw new Exception("Updating the success state in property cache table failed: " + e.Message, e);
             }
         }
 

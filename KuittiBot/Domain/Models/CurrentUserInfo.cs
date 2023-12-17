@@ -8,9 +8,14 @@ using System.Threading.Tasks;
 
 namespace KuittiBot.Functions.Domain.Models
 {
-    public class FileHashEntity : TableEntity
+    public class CurrentUserInfo
     {
+        public string UserId { get; set; }
+        public string UserName { get; set; }
         public string FileName { get; set; }
         public string Hash { get; set; }
+        public string FileId { get; set; }
+        public string DocumentType { get; set; }
+
     }
 }

@@ -11,11 +11,8 @@ namespace KuittiBot.Functions.Domain.Models
     public class UserDataCacheEntity : TableEntity
     {
         public string Id { get; set; }
-        public string FileName { get; set; }
-        public string FileId { get; set; }
+        //public string FileName { get; set; }                  // pitäisikö tehdä tiedostokohtainen state vai user kohtainen?
         public string UserName { get; set; }
-        public string Description { get; set; }
-        public string PayersRaw { get; set; }
         public BotState CurrentState { get; set; }
         //[IgnoreProperty]
         //public List<string> Payers

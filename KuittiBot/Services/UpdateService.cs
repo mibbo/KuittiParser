@@ -22,6 +22,7 @@ using Azure;
 using OpenAI.Chat;
 using OpenAI.Models;
 using Message = OpenAI.Chat.Message;
+using KuittiBot.Functions.Infrastructure;
 
 namespace KuittiBot.Functions.Services
 {
@@ -30,19 +31,19 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
-        private IFileHashCache _fileHashCache;
+        private IUserFileInfoCache _userFileInfoCache;
         private IReceiptParsingService _receiptParsingService;
-        private static string _fileName;
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
+        private CurrentUserInfo _currentUser;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IFileHashCache fileHashCache, IReceiptParsingService receiptParsingService)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IUserFileInfoCache userFileInfoCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
-            _fileHashCache = fileHashCache;
+            _userFileInfoCache = userFileInfoCache;
             _receiptParsingService = receiptParsingService;
             _openAiClient = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
         }
@@ -51,33 +52,47 @@ namespace KuittiBot.Functions.Services
         {
             if (!(update.Message is { } message)) return;
 
+            _currentUser = new CurrentUserInfo() 
+            {
+                UserId = message.From.Id.ToString(),
+                FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId
+            };
+
             var stream = await DownloadFileAsync(update);
-            await UploadFileIfDoesNotExist(update, stream);
+            await UploadFileToStorage(update, stream);
 
             Receipt receipt = new Receipt();
             receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+
+            await _userFileInfoCache.UpdateSuccessState(_currentUser.Hash, true);
 
             await PrintReceiptToUser(update, receipt);
         }
 
 
-        private async Task UploadFileIfDoesNotExist(Update update, Stream stream)
+        private async Task UploadFileToStorage(Update update, Stream stream)
         {
             stream.Position = 0;
 
-            var documentType = update.Message?.Document?.MimeType ?? "application/jpg";
-
-            var uploader = new AzureBlobUploader();
+            _currentUser.DocumentType = update.Message?.Document?.MimeType ?? "application/jpg";
 
             var fileHash = ComputeHash(stream);
-            _fileName = fileHash + (documentType == "application/jpg" ? ".jpg" : ".pdf");
+            _currentUser.Hash = fileHash;
+            _currentUser.FileName = fileHash +  (_currentUser.DocumentType == "application/jpg" ? ".jpg" : ".pdf");
 
-            var checkIfHashExists = await _fileHashCache.GetFileByHash(fileHash);
-            if (checkIfHashExists == null)
+            var uploader = new AzureBlobUploader();
+            await uploader.UploadFileStreamIfNotExistAsync("receipt-cache", _currentUser.FileName, stream, _currentUser.DocumentType);
+
+            var userInfoToUpload = new UserFileInfoEntity
             {
-                await uploader.UploadFileStreamAsync("receipt-cache", _fileName, stream, documentType);
-                await _fileHashCache.InsertFileHashAsync(_fileName, fileHash);
-            }
+                UserId = _currentUser.UserId,
+                FileName = _currentUser.FileName,
+                FileId = _currentUser.FileId,
+                Hash = _currentUser.Hash,
+                SuccessFullyParsed = false
+            };
+
+            await _userFileInfoCache.InsertUserFileInfoIfNotExistAsync(userInfoToUpload);
         }
 
 
@@ -139,11 +154,13 @@ namespace KuittiBot.Functions.Services
             if (!(update.Message is { } message)) return;
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
-            await _botClient.SendTextMessageAsync(
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"Moro {message.From.FirstName ?? message.From.Username}! \n" +
                       $"Parseen sun kuitin bro!");
-
+            }
 
             //await _botClient.SendTextMessageAsync(
             //    chatId: message.Chat.Id,
@@ -169,7 +186,7 @@ namespace KuittiBot.Functions.Services
 
                 var messages = new List<Message>
                 {
-                    new Message(Role.System, "Toimi luovana ja karismaattisena keskustelukumppanina, joka arvostelee ja kritisoi muiden ihmisten ostoksia. Tehtävänäsi on olla ankara kriitikko ostoksilleni. Selitä omin sanoin, miksi ostokseni ovat hyviä tai huonoja. Haluan, että vakuutat minut siitä, miksi minun tulisi parantaa ostoksiani. Tee siitä jotenkin hauskaa. Mutta pidä se lyhyenä ja shokeeraavana. Älä kerro minulle, että yrität olla hauska tai shokeeraava. Haluan, että arvostelet ja tuomitset seuraavat ostokseni, jotka annan sinulle seuraavassa kehotteessa. Anna vastaus maksimissaa kolmella lauseella."),
+                    new Message(Role.System, "Toimi luovana ja karismaattisena keskustelukumppanina, joka arvostelee ja kritisoi muiden ihmisten ostoksia. Tehtävänäsi on olla ankara kriitikko ostoksilleni. Selitä omin sanoin, miksi ostokseni ovat hyviä tai huonoja. Haluan, että vakuutat minut siitä, miksi minun tulisi parantaa ostoksiani. Tee siitä jotenkin hauskaa. Mutta pidä se lyhyenä ja shokeeraavana. Älä kerro minulle, että yrität olla hauska tai shokeeraava. Haluan, että arvostelet ja tuomitset seuraavat ostokseni, jotka annan sinulle seuraavassa kehotteessa. Haluan että tuomitset satunnaisesti jonkun ostoksen (älä valitse aina vain ensimmäistä tai toista ostosta vaan valitse sellaiset tuotteet joista saa kaikista hauskimman tuomitsevan kommentin). Anna vastaus maksimissaa kolmella lauseella."),
                     new Message(Role.User, $"Hei katso miten hienoja ostoksia tein: {str}")
                 };
 
@@ -199,7 +216,7 @@ namespace KuittiBot.Functions.Services
                 return;
 
 
-            var userFromCache = await _userDataCache.GetUserById(message.From.Id.ToString());
+            var userFromCache = await _userDataCache.GetUserByIdAsync(message.From.Id.ToString());
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
             await _botClient.SendTextMessageAsync(
@@ -228,13 +245,13 @@ namespace KuittiBot.Functions.Services
             {
                 var uploader = new AzureBlobUploader();
 
-                var fileWasCopied = await uploader.CopyFileToAnotherContainer("receipt-cache", "kuittibot-training", _fileName);
+                var fileWasCopied = await uploader.CopyFileToAnotherContainerIfNotExist("receipt-cache", "kuittibot-training", _currentUser.FileName);
 
                 if (fileWasCopied)
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: $"Tiedosto '{_fileName}' siirrettiin training dataan");
+                        text: $"Tiedosto '{_currentUser.FileName}' siirrettiin training dataan");
                 }
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
