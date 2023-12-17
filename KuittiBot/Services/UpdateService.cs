@@ -154,30 +154,35 @@ namespace KuittiBot.Functions.Services
         public async Task PrintReceiptToUser(Update update, Receipt receipt)
         {
             if (!(update.Message is { } message)) return;
-            
+
             List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
             Console.WriteLine(str);
 
-            var messages = new List<Message>
+
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"Tässä kuitin ostokset: \n{str}",
+                    parseMode: ParseMode.Html);
+
+                var messages = new List<Message>
                 {
                     new Message(Role.System, "Toimi luovana ja karismaattisena keskustelukumppanina, joka arvostelee ja kritisoi muiden ihmisten ostoksia. Tehtävänäsi on olla ankara kriitikko ostoksilleni. Selitä omin sanoin, miksi ostokseni ovat hyviä tai huonoja. Haluan, että vakuutat minut siitä, miksi minun tulisi parantaa ostoksiani. Tee siitä jotenkin hauskaa. Mutta pidä se lyhyenä ja shokeeraavana. Älä kerro minulle, että yrität olla hauska tai shokeeraava. Haluan, että arvostelet ja tuomitset seuraavat ostokseni, jotka annan sinulle seuraavassa kehotteessa. Anna vastaus maksimissaa kolmella lauseella."),
                     new Message(Role.User, $"Hei katso miten hienoja ostoksia tein: {str}")
                 };
-            var chatRequest = new ChatRequest(messages, Model.GPT3_5_Turbo);
-            var response = await _openAiClient.ChatEndpoint.GetCompletionAsync(chatRequest);
-            var choice = response.FirstChoice;
-            Console.WriteLine($"[{choice.Index}] {choice.Message.Role}: {choice.Message} | Finish Reason: {choice.FinishReason}");
 
-            await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"Tässä kuitin ostokset: \n{str}",
-                parseMode: ParseMode.Html);
+                var chatRequest = new ChatRequest(messages, Model.GPT3_5_Turbo);
+                var response = await _openAiClient.ChatEndpoint.GetCompletionAsync(chatRequest);
+                var choice = response.FirstChoice;
+                Console.WriteLine($"[{choice.Index}] {choice.Message.Role}: {choice.Message} | Finish Reason: {choice.FinishReason}");
 
-            await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: choice.Message,
-                parseMode: ParseMode.Html);
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: choice.Message,
+                    parseMode: ParseMode.Html);
+            }
         }
 
 
@@ -223,7 +228,6 @@ namespace KuittiBot.Functions.Services
             {
                 var uploader = new AzureBlobUploader();
 
-
                 var fileWasCopied = await uploader.CopyFileToAnotherContainer("receipt-cache", "kuittibot-training", _fileName);
 
                 if (fileWasCopied)
@@ -231,15 +235,28 @@ namespace KuittiBot.Functions.Services
                     await _botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
                         text: $"Tiedosto '{_fileName}' siirrettiin training dataan");
-                } 
-
-                _logger.LogInformation("Received Message from {0}", message.Chat.Id);
+                }
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: $"Voi jummijammi {message.From.FirstName ?? message.From.Username}! \n" +
                           $"Tuli tämmönen errori: \n" + exception.Message);
-            }
 
+                var messages = new List<Message>
+                {
+                    new Message(Role.System, "Kuvittele että olet henkilö, joka on mestari keksimään täysin absurdeja ja kaukaa haettuja selityksiä pienimmillekin virheilleen. Esimerkiksi tämä henkilö ei koskaan vain myöhästy, vaan hänen myöhästymisensä johtuu aina jostain uskomattoman epätodennäköisestä tapahtumasarjasta. Esimerkiksi, jos hän myöhästyy töistä, hänen selityksensä ei ole ruuhka tai unohdettu herätyskello. Sen sijaan hän kertoo tarinan siitä, kuinka hän kohtasi matkalla puhuvan papukaijan, joka oli eksynyt ja joka vei hänet väärään suuntaan antaessaan suuntavihjeitä. Tai kun hän unohtaa palauttaa tärkeän asiakirjan, hän ei vain sano unohtaneensa sitä. Hän kertoo kuinka asiakirja \"varastettiin\" salaperäisen näkymättömän agentin toimesta, joka sekoittaa säännöllisesti hänen papereitaan. Tämä henkilö on luova, ehkä vähän teatraalinenkin, ja hänen tarinansa ovat niin värikkäitä ja mielikuvituksellisia, että niitä on vaikea ottaa vakavasti. Hän ei ehkä edes odota, että muut uskovat näihin kertomuksiin; ne ovat pikemminkin hänen tapansa vältellä vastuuta tai lisätä huumoria jokapäiväisiin tilanteisiin. Hänellä on taipumus olla keskipisteenä, ei ainoastaan hänen tarinoidensa fantastisuuden vuoksi, vaan myös siksi, että ihmiset odottavat innolla, mitä hän seuraavaksi keksii. Haluan että kun annan sinulle ohjelmistossani tapahtuvan virheen viestin, niin olet tällainen yllä kuvaamani henkilö ja keksit tälle virheelle jonkin todella absurdin ja kaukaa haetun selityksen painottaen että ohjelmiston koodissa tai sen toiminnassa ei ole mitään vikaa. Älä kerro minulle, että yrität keksiä kaukaa haettuja tai absurdeja selityksiä."),
+                    new Message(Role.User, $"There was error in the code when parsing a product - {exception.Message}")
+                };
+
+                var chatRequest = new ChatRequest(messages, Model.GPT3_5_Turbo);
+                var response = await _openAiClient.ChatEndpoint.GetCompletionAsync(chatRequest);
+                var choice = response.FirstChoice;
+                Console.WriteLine($"[{choice.Index}] {choice.Message.Role}: {choice.Message} | Finish Reason: {choice.FinishReason}");
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: choice.Message,
+                    parseMode: ParseMode.Html);
+            }
         }
 
 
