@@ -64,6 +64,8 @@ namespace KuittiBot.Functions.Services
             Receipt receipt = new Receipt();
             receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
 
+            _currentUser.Confidence = receipt.Confidence;
+
             await _userFileInfoCache.UpdateSuccessState(_currentUser.Hash, true);
 
             await PrintReceiptToUser(update, receipt);
@@ -89,6 +91,7 @@ namespace KuittiBot.Functions.Services
                 FileName = _currentUser.FileName,
                 FileId = _currentUser.FileId,
                 Hash = _currentUser.Hash,
+                Confidence = _currentUser.Confidence,
                 SuccessFullyParsed = false
             };
 

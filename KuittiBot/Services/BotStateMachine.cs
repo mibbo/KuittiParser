@@ -109,7 +109,7 @@ namespace KuittiBot.Functions.Services
                 await _updateService.WelcomeUser(update);
             }
 
-            if (update.Message.Text == "/top10")
+            if (update.Message.Text.Contains("top"));
             {
                 await _updateService.PrintLeaderboard(update);
             }

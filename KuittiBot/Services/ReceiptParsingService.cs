@@ -48,6 +48,7 @@ namespace KuittiBot.Functions.Services
                 AnalyzedDocument document = result.Documents[i];
 
                 receipt.ShopName = document.Fields["MerchantName"].Value.AsString();
+                receipt.Confidence = document.Confidence;
 
 
                 var receiptItems = document.Fields["Items"].Value.AsList();
