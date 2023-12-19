@@ -120,7 +120,7 @@ namespace KuittiBot.Functions.Services
 
             if (update.Message.Text == "/CorrectTrainingLabels") ;
             {
-                await _updateService.CorrectTrainingData();
+                await _updateService.CorrectTrainingData(update);
             }
         }
         //private Task AskParticipants(Update update)

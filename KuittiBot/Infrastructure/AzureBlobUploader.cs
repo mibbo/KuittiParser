@@ -95,10 +95,12 @@ public class AzureBlobUploader
     }
 
 
-    public async Task CorrectTrainingLabelJson(string container)
+    public async Task<int> CorrectTrainingLabelJson(string container)
     {
         BlobServiceClient blobServiceClient = new BlobServiceClient(_connectionString);
         BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
+
+        var filesCorrected = 0;
 
         await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
         {
@@ -120,9 +122,11 @@ public class AzureBlobUploader
                     // Upload the modified JSON back to the blob storage
                     modifiedStream.Position = 0; // Reset stream position to the beginning for upload
                     await blobClient.UploadAsync(modifiedStream, overwrite: true);
+                    filesCorrected++;
                 }
             }
         }
+        return filesCorrected;
     }
 
     private FormRecognizerLabelDocument DeserializeJsonFromStream(MemoryStream stream)

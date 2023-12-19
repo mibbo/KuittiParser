@@ -23,6 +23,7 @@ using OpenAI.Chat;
 using OpenAI.Models;
 using Message = OpenAI.Chat.Message;
 using KuittiBot.Functions.Infrastructure;
+using OpenAI.Threads;
 
 namespace KuittiBot.Functions.Services
 {
@@ -336,10 +337,17 @@ namespace KuittiBot.Functions.Services
             return inlineKeyboard;
         }
 
-        public async Task CorrectTrainingData()
+        public async Task CorrectTrainingData(Update update)
         {
+            if (!(update.Message is { } message)) return;
+            
             var uploader = new AzureBlobUploader();
-            await uploader.CorrectTrainingLabelJson("kuittibot-training");
+            var fileNumber = await uploader.CorrectTrainingLabelJson("kuittibot-training");
+
+            await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: choice.Message,
+                parseMode: ParseMode.Html);
         }
     }
 }
