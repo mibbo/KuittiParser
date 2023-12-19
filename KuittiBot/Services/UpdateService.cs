@@ -66,6 +66,8 @@ namespace KuittiBot.Functions.Services
 
             _currentUser.Confidence = receipt.Confidence;
 
+            // TODO insert confidence to the storage _currentUser.Confidence.ToString("0.0000"),
+
             await _userFileInfoCache.UpdateSuccessState(_currentUser.Hash, true);
 
             await PrintReceiptToUser(update, receipt);
@@ -91,7 +93,6 @@ namespace KuittiBot.Functions.Services
                 FileName = _currentUser.FileName,
                 FileId = _currentUser.FileId,
                 Hash = _currentUser.Hash,
-                Confidence = _currentUser.Confidence.ToString("0.0000"),
                 SuccessFullyParsed = false
             };
 
@@ -333,6 +334,12 @@ namespace KuittiBot.Functions.Services
                     });
 
             return inlineKeyboard;
+        }
+
+        public async Task CorrectTrainingData()
+        {
+            var uploader = new AzureBlobUploader();
+            await uploader.CorrectTrainingLabelJson("kuittibot-training");
         }
     }
 }

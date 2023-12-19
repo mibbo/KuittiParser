@@ -16,5 +16,6 @@ namespace KuittiBot.Functions.Domain.Models
         public string FileId { get; set; }
         public string Confidence { get; set; }
         public bool SuccessFullyParsed { get; set; }
+        public bool TrainingLabelsCorrected { get; set; }
     }
 }

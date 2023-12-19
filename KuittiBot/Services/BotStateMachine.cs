@@ -1,4 +1,6 @@
 ﻿using Azure;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs;
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
 using Microsoft.Azure.Documents;
@@ -7,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -43,7 +46,7 @@ namespace KuittiBot.Functions.Services
             // Retrieve user state from Table Storage
             if (!(update.Message is { } message))
                 return;
-
+          
             var userId = message.From.Id.ToString();
 
             var userFromCache = await _userDataCache.GetUserByIdAsync(userId);
@@ -103,15 +106,21 @@ namespace KuittiBot.Functions.Services
 
         private async Task PrintCommand(Update update)
         {
+
             // Implement logic to handle receipt
             if (_isNewUser)
             {
                 await _updateService.WelcomeUser(update);
             }
 
-            if (update.Message.Text.Contains("top"));
+            if (update.Message.Text.Contains("top")) ;
             {
                 await _updateService.PrintLeaderboard(update);
+            }
+
+            if (update.Message.Text == "/CorrectTrainingLabels") ;
+            {
+                await _updateService.CorrectTrainingData();
             }
         }
         //private Task AskParticipants(Update update)
@@ -137,5 +146,6 @@ namespace KuittiBot.Functions.Services
         //    // Implement logic to show summary
         //    return Task.CompletedTask;
         //}
+        
     }
 }
