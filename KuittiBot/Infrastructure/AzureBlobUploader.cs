@@ -114,7 +114,7 @@ public class AzureBlobUploader
                     FormRecognizerLabelDocument document = DeserializeJsonFromStream(stream);
 
                     // Perform the required modifications on the document object
-                    ModifyDocument(document);
+                    var modified = ModifyDocument(document);
 
                     // Serialize the modified document back to a MemoryStream
                     MemoryStream modifiedStream = SerializeToJsonStream(document);
@@ -122,7 +122,11 @@ public class AzureBlobUploader
                     // Upload the modified JSON back to the blob storage
                     modifiedStream.Position = 0; // Reset stream position to the beginning for upload
                     await blobClient.UploadAsync(modifiedStream, overwrite: true);
-                    filesCorrected++;
+
+                    if (modified)
+                    {
+                        filesCorrected++;
+                    }
                 }
             }
         }
@@ -146,8 +150,9 @@ public class AzureBlobUploader
         return new MemoryStream(byteArray);
     }
 
-    private void ModifyDocument(FormRecognizerLabelDocument document)
+    private bool ModifyDocument(FormRecognizerLabelDocument document)
     {
+        var modified = false;
         foreach (var label in document.Labels)
         {
             if (label.LabelName.Contains("Total")|| label.LabelName.Contains("Discount"))
@@ -179,19 +184,21 @@ public class AzureBlobUploader
                         label.Value.RemoveRange(1, label.Value.Count() - 1);
                         label.Value[0].Text = combinedText;
                         label.Value[0].BoundingBoxes[0] = mergedBb;
+                        modified = true;
                     }
                 }
 
                 for (var i = 0; i < label.Value.Count(); i++)
                 {
-                    if (!label.Value[i].Text.Any(char.IsLetter)){
+                    if (!label.Value[i].Text.Any(char.IsLetter) && label.Value[i].Text.Contains(" ")){
                         var value = label.Value[i];
                         var text = value.Text.Replace(" ", "");
                         label.Value[i].Text = text;
+                        modified = true;
                     }
-
                 }
             }
         }
+        return modified;
     }
 }
