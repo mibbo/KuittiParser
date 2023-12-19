@@ -346,7 +346,7 @@ namespace KuittiBot.Functions.Services
 
             await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: choice.Message,
+                text: $"{fileNumber} training files were corrected",
                 parseMode: ParseMode.Html);
         }
     }
