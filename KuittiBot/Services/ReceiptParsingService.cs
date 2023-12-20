@@ -35,7 +35,7 @@ namespace KuittiBot.Functions.Services
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
 
 
-            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v3", stream);
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v4", stream);
 
             AnalyzeResult result = operation.Value;
 
