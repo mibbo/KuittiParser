@@ -9,7 +9,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiParses.Console", "Kui
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiBot.Pulumi", "pulumi\KuittiBot.Pulumi\KuittiBot.Pulumi.csproj", "{50AEFD90-B716-4164-B14E-8F2F6C0A23A5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KuittiBot.Tests", "KuittiBot.Tests\KuittiBot.Tests.csproj", "{BA3F792B-D7EE-4730-8A7B-C8FDC0F771B6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KuittiBot.Tests", "KuittiBot.Tests\KuittiBot.Tests.csproj", "{BA3F792B-D7EE-4730-8A7B-C8FDC0F771B6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseReleaseAutomation", "DatabaseReleaseAutomation\DatabaseReleaseAutomation.csproj", "{94A2D900-0F08-45B2-8A5F-9AB2BC689D4C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{BA3F792B-D7EE-4730-8A7B-C8FDC0F771B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA3F792B-D7EE-4730-8A7B-C8FDC0F771B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA3F792B-D7EE-4730-8A7B-C8FDC0F771B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94A2D900-0F08-45B2-8A5F-9AB2BC689D4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94A2D900-0F08-45B2-8A5F-9AB2BC689D4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94A2D900-0F08-45B2-8A5F-9AB2BC689D4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94A2D900-0F08-45B2-8A5F-9AB2BC689D4C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
