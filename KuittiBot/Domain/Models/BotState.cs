@@ -9,7 +9,8 @@ namespace KuittiBot.Functions.Domain.Models
     public enum BotState
     {
         WaitingForInput,
-        ReceivingReceipt,
+        ReceivedReceipt,
+        ReceivedPayers,
         AskingParticipants,
         AllocatingItems,
         Summary

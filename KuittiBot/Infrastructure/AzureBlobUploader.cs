@@ -13,7 +13,6 @@ using System.Threading.Tasks;
 public class AzureBlobUploader
 {
     private readonly string _connectionString;
-    private IUserFileInfoCache _fileHashCache;
 
     // Constructor that uses the Azure Function's storage account
     public AzureBlobUploader()

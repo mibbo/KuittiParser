@@ -16,6 +16,5 @@ namespace KuittiBot.Functions.Domain.Models
         public string Hash { get; set; }
         public string FileId { get; set; }
         public string DocumentType { get; set; }
-        public float Confidence { get; set; }
     }
 }

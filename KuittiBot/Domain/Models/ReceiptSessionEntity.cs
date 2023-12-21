@@ -8,14 +8,13 @@ using System.Threading.Tasks;
 
 namespace KuittiBot.Functions.Domain.Models
 {
-    public class UserFileInfoEntity : TableEntity
+    public class ReceiptSessionEntity : TableEntity
     {
         public string UserId { get; set; }
         public string Hash { get; set; }
         public string FileName { get; set; }
         public string FileId { get; set; }
-        public string Confidence { get; set; }
-        public bool SuccessFullyParsed { get; set; }
-        public bool TrainingLabelsCorrected { get; set; }
+        public bool SessionSuccessful { get; set; }
+        //public bool TrainingLabelsCorrected { get; set; }
     }
 }

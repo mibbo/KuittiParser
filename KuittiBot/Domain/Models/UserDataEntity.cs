@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace KuittiBot.Functions.Domain.Models
 {
-    public class UserDataCacheEntity : TableEntity
+    public class UserDataEntity : TableEntity
     {
         public string Id { get; set; }
         //public string FileName { get; set; }                  // pitäisikö tehdä tiedostokohtainen state vai user kohtainen?

@@ -10,6 +10,7 @@ namespace KuittiBot.Functions.Domain.Models
     {
         ReceivedReceiptDocument,
         ReceivedTextMessage,
+        ReceivedCommand,
         ReceivedCallbackQuery
     }
 }

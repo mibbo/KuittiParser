@@ -32,14 +32,14 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
-        private IUserFileInfoCache _userFileInfoCache;
+        private IReceiptSessionCache _userFileInfoCache;
         private IReceiptParsingService _receiptParsingService;
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
         private UserSessionInfo _currentUser;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IUserFileInfoCache userFileInfoCache, IReceiptParsingService receiptParsingService)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptSessionCache userFileInfoCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
@@ -49,7 +49,7 @@ namespace KuittiBot.Functions.Services
             _openAiClient = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
         }
 
-            public async Task InitializeParseingForUser(Update update)
+        public async Task InitializeParseingForUser(Update update)
         {
             if (!(update.Message is { } message)) return;
 
@@ -65,13 +65,29 @@ namespace KuittiBot.Functions.Services
             Receipt receipt = new Receipt();
             receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
 
-            _currentUser.Confidence = receipt.Confidence;
+            // TODO: 
+            // Tee receiptSessionCache
+            //   --> Method: Set Session
+            //          --> Entity: Receipt entityn kopio
 
-            // TODO insert confidence to the storage _currentUser.Confidence.ToString("0.0000"),
 
-            await _userFileInfoCache.UpdateSuccessState(_currentUser.Hash, true);
+            await _userFileInfoCache.UpdateSessionSuccessState(_currentUser.Hash, true);
 
             await PrintReceiptToUser(update, receipt);
+        }
+
+        public async Task CreatePayerButtons(Update update)
+        {
+            if (!(update.Message is { } message)) return;
+            var example = "Tommi Lumppa Kalevi";
+            var payersRaw = message.Text;
+
+            // TODO:
+            //   --> Method: Set SessionPayers
+            //   --> Method: Get SessionPayers
+            //            var payers = message.Text.Split(" ").ToList().Select(payer => payer.Trim());
+
+            // Palauta: Napit jokaiselle maksajalle
         }
 
 
@@ -88,16 +104,16 @@ namespace KuittiBot.Functions.Services
             var uploader = new AzureBlobUploader();
             await uploader.UploadFileStreamIfNotExistAsync("receipt-cache", _currentUser.FileName, stream, _currentUser.DocumentType);
 
-            var userInfoToUpload = new UserFileInfoEntity
+            var userInfoToUpload = new ReceiptSessionEntity
             {
                 UserId = _currentUser.UserId,
                 FileName = _currentUser.FileName,
                 FileId = _currentUser.FileId,
                 Hash = _currentUser.Hash,
-                SuccessFullyParsed = false
+                SessionSuccessful = false
             };
 
-            await _userFileInfoCache.InsertUserFileInfoIfNotExistAsync(userInfoToUpload);
+            await _userFileInfoCache.InsertSessionIfNotExistAsync(userInfoToUpload);
         }
 
 
@@ -184,7 +200,7 @@ namespace KuittiBot.Functions.Services
             var allUsers = await _userDataCache.GetAllUsers();
             foreach (var user in allUsers)
             {
-                var fileCount = await _userFileInfoCache.GetFileCountByUserId(user.Id);
+                var fileCount = await _userFileInfoCache.GetSessionCountByUserId(user.Id);
 
                 leaderboard.Add(user.UserName, fileCount);
             }

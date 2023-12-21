@@ -14,30 +14,30 @@ namespace KuittiBot.Functions.Infrastructure
     public class UserDataCache : IUserDataCache
     {
         private ILogger<UserDataCache> _logger;
-        private ITableDataStore<UserDataCacheEntity> _tableDataStore;
+        private ITableDataStore<UserDataEntity> _tableDataStore;
 
         public UserDataCache(
-            ITableDataStore<UserDataCacheEntity> tableDataStore,
+            ITableDataStore<UserDataEntity> tableDataStore,
             ILogger<UserDataCache> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _tableDataStore = tableDataStore;
         }
 
-        public async Task InsertAsync(UserDataCacheEntity property)
+        public async Task InsertAsync(UserDataEntity property)
         {
             try
             {
                 var entity = property;
                 await _tableDataStore.InsertAsync(BatchingMode.None, entity);
             }
-            catch (AzureTableDataStoreSingleOperationException<UserDataCacheEntity> e)
+            catch (AzureTableDataStoreSingleOperationException<UserDataEntity> e)
             {
                 throw new Exception("Inserting into property cache table failed: " + e.Message, e);
             }
         }
 
-        public async Task UpdateUserAsync(UserDataCacheEntity property)
+        public async Task UpdateUserAsync(UserDataEntity property)
         {
             try
             {
@@ -55,11 +55,11 @@ namespace KuittiBot.Functions.Infrastructure
             await _tableDataStore.ListAsync(x => new { x.Id }, 1);
         }
 
-        public async Task<UserDataCacheEntity> GetUserByIdAsync(string userId)
+        public async Task<UserDataEntity> GetUserByIdAsync(string userId)
         {
             try
             {
-                Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
+                Expression<Func<UserDataEntity, bool>> query = user => user.Id == userId;
                 var user = await _tableDataStore.FindAsync(query);
                 return user.ToList().FirstOrDefault();
             }
@@ -73,7 +73,7 @@ namespace KuittiBot.Functions.Infrastructure
         {
             try
             {
-                Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
+                Expression<Func<UserDataEntity, bool>> query = user => user.Id == userId;
                 var userFromStorage = await _tableDataStore.FindAsync(query);
                 var userIdFromStorage = userFromStorage.ToList().FirstOrDefault()?.Id;
 
@@ -86,7 +86,7 @@ namespace KuittiBot.Functions.Infrastructure
         }
 
 
-        public async Task<IList<UserDataCacheEntity>> GetAllUsers()
+        public async Task<IList<UserDataEntity>> GetAllUsers()
         {
             try
             {

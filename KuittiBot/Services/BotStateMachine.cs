@@ -32,35 +32,30 @@ namespace KuittiBot.Functions.Services
 
         private void InitializeTransitions()
         {
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivingReceipt, Action = HandleReceipt });
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedTextMessage, NextState = BotState.ReceivingReceipt, Action = PrintCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivedReceipt, Action = HandleReceipt });
+            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.WaitingForInput, Action = HandlePayers });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
         }
-
 
 
         public async Task OnUpdate(Update update)
         {
-            // Retrieve user state from Table Storage
             if (!(update.Message is { } message))
                 return;
           
             var userId = message.From.Id.ToString();
+            var cachedUser = await _userDataCache.GetUserByIdAsync(userId);
 
-            var userFromCache = await _userDataCache.GetUserByIdAsync(userId);
-            
-            // If no user found from cache -> Initialize new user
-            var user = userFromCache ?? 
-                new UserDataCacheEntity 
+            _isNewUser = cachedUser == null;
+            var user = cachedUser ?? new UserDataEntity 
                 {
                     Id = userId,
                     UserName = update.Message.From.Username,
                     CurrentState = BotState.WaitingForInput 
                 };
-
-
 
             // Determine event and find transition
             var botEvent = DetermineEvent(update);
@@ -69,14 +64,15 @@ namespace KuittiBot.Functions.Services
             // If the transition is succesfull, initialize next stage for the session
             if (transition != null)
             {
-                //user.CurrentState = transition.NextState;                 // DISABLED -> TODO next transition
-                user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition
+                if (botEvent != BotEvent.ReceivedCommand)
+                {
+                    user.CurrentState = transition.NextState;                 // DISABLED -> TODO next transition
+                    //user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition
+                }
 
                 await _userDataCache.UpdateUserAsync(user);
 
                 await transition.Action(update);
-
-                //await _userDataCache.UpdateUserAsync(user);
             }
         }
 
@@ -104,7 +100,13 @@ namespace KuittiBot.Functions.Services
             await _updateService.InitializeParseingForUser(update);
         }
 
-        private async Task PrintCommand(Update update)
+        private async Task HandlePayers(Update update)
+        {
+            // Implement logic to handle receipt
+            await _updateService.CreatePayerButtons(update);
+        }
+
+        private async Task UserCommand(Update update)
         {
 
             // Implement logic to handle receipt
@@ -113,12 +115,12 @@ namespace KuittiBot.Functions.Services
                 await _updateService.WelcomeUser(update);
             }
 
-            if (update.Message.Text.Contains("top")) ;
+            if (update.Message.Text.Contains("top"))
             {
                 await _updateService.PrintLeaderboard(update);
             }
 
-            if (update.Message.Text == "/CorrectTrainingLabels") ;
+            if (update.Message.Text == "/CorrectTrainingLabels")
             {
                 await _updateService.CorrectTrainingData(update);
             }

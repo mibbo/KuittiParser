@@ -44,30 +44,30 @@ namespace KuittiBot.Functions
 
             // UserDataCache
             builder.Services.AddSingleton<IUserDataCache, UserDataCache>();
-            builder.Services.AddSingleton<ITableDataStore<UserDataCacheEntity>, TableDataStore<UserDataCacheEntity>>(sp =>
-                new TableDataStore<UserDataCacheEntity>(
+            builder.Services.AddSingleton<ITableDataStore<UserDataEntity>, TableDataStore<UserDataEntity>>(sp =>
+                new TableDataStore<UserDataEntity>(
                 Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
                 "userdatacache",
                 true,
                 "userdatacache",
                 true,
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
-                partitionKeyProperty: nameof(UserDataCacheEntity.Id),
-                rowKeyProperty: nameof(UserDataCacheEntity.UserName))
+                partitionKeyProperty: nameof(UserDataEntity.Id),
+                rowKeyProperty: nameof(UserDataEntity.UserName))
             );
 
-            // FileHashCache
-            builder.Services.AddSingleton<IUserFileInfoCache, UserFileInfoCache>();
-            builder.Services.AddSingleton<ITableDataStore<UserFileInfoEntity>, TableDataStore<UserFileInfoEntity>>(sp =>
-                new TableDataStore<UserFileInfoEntity>(
+            // ReceiptSessionCache
+            builder.Services.AddSingleton<IReceiptSessionCache, ReceiptSessionCache>();
+            builder.Services.AddSingleton<ITableDataStore<ReceiptSessionEntity>, TableDataStore<ReceiptSessionEntity>>(sp =>
+                new TableDataStore<ReceiptSessionEntity>(
                 Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
-                "userfileinfocache",
+                "usersessioncache",
                 true,
-                "userfileinfocache",
+                "usersessioncache",
                 true,
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
-                partitionKeyProperty: nameof(UserFileInfoEntity.UserId),
-                rowKeyProperty: nameof(UserFileInfoEntity.Hash))
+                partitionKeyProperty: nameof(ReceiptSessionEntity.UserId),
+                rowKeyProperty: nameof(ReceiptSessionEntity.Hash))
             );
 
 
