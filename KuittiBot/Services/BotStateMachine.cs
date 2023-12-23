@@ -32,7 +32,7 @@ namespace KuittiBot.Functions.Services
 
         private void InitializeTransitions()
         {
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivedReceipt, Action = HandleReceipt });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.WaitingForInput, Action = HandleReceipt });
             _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.WaitingForInput, Action = HandlePayers });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
