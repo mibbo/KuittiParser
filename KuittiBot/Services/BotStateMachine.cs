@@ -82,9 +82,9 @@ namespace KuittiBot.Functions.Services
             {
                 return BotEvent.ReceivedReceiptDocument;
             }
-            if (update.Type == UpdateType.Message)
+            if (update.Type == UpdateType.Message && update.Message.Text.StartsWith('/'))
             {
-                return BotEvent.ReceivedTextMessage;
+                return BotEvent.ReceivedCommand;
             }
             if (update.Type == UpdateType.CallbackQuery)
             {
@@ -115,7 +115,7 @@ namespace KuittiBot.Functions.Services
                 await _updateService.WelcomeUser(update);
             }
 
-            if (update.Message.Text.Contains("top"))
+            if (update.Message.Text.ToLower().Contains("/top"))
             {
                 await _updateService.PrintLeaderboard(update);
             }

@@ -32,19 +32,19 @@ namespace KuittiBot.Functions.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
         private IUserDataCache _userDataCache;
-        private IReceiptSessionCache _userFileInfoCache;
+        private IReceiptSessionCache _receiptSessionCache;
         private IReceiptParsingService _receiptParsingService;
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
         private UserSessionInfo _currentUser;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptSessionCache userFileInfoCache, IReceiptParsingService receiptParsingService)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptSessionCache receiptSessionCache, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
-            _userFileInfoCache = userFileInfoCache;
+            _receiptSessionCache = receiptSessionCache;
             _receiptParsingService = receiptParsingService;
             _openAiClient = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
         }
@@ -71,7 +71,7 @@ namespace KuittiBot.Functions.Services
             //          --> Entity: Receipt entityn kopio
 
 
-            await _userFileInfoCache.UpdateSessionSuccessState(_currentUser.Hash, true);
+            await _receiptSessionCache.UpdateSessionSuccessState(_currentUser.Hash, true);
 
             await PrintReceiptToUser(update, receipt);
         }
@@ -113,7 +113,7 @@ namespace KuittiBot.Functions.Services
                 SessionSuccessful = false
             };
 
-            await _userFileInfoCache.InsertSessionIfNotExistAsync(userInfoToUpload);
+            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
         }
 
 
@@ -200,7 +200,7 @@ namespace KuittiBot.Functions.Services
             var allUsers = await _userDataCache.GetAllUsers();
             foreach (var user in allUsers)
             {
-                var fileCount = await _userFileInfoCache.GetSessionCountByUserId(user.Id);
+                var fileCount = await _receiptSessionCache.GetSessionCountByUserId(user.Id);
 
                 leaderboard.Add(user.UserName, fileCount);
             }
