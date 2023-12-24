@@ -35,7 +35,7 @@ namespace KuittiBot.Functions.Services
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
 
 
-            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v4", stream);
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v5", stream);
 
             AnalyzeResult result = operation.Value;
 
@@ -80,6 +80,12 @@ namespace KuittiBot.Functions.Services
                             productDictionary[previousProduct.Id].Name = productDictionary[previousProduct.Id].Name + $" (sis. PANTTI {currentProduct.Cost})";
                             productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
                             continue;
+                        }
+
+                        if (currentProduct.Name.Contains("PULLOPALAUTUS") && !currentProductCostString.Contains('-'))
+                        {
+                            // Tee omana rivinä, mutta hinta negatiivisena
+                            currentProduct.Cost *= -1;
                         }
 
                         //currentProduct.Cost = decimal.Parse(currentProductCost, new CultureInfo("fi", true));
