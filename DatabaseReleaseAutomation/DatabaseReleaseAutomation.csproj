@@ -8,6 +8,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Scripts\001-AddUsersTable.sql" />
+    <None Remove="Scripts\002-AddReceiptSessionTable.sql" />
+    <None Remove="Scripts\003-AddReceiptTable.sql" />
+    <None Remove="Scripts\004-AddProductTable.sql" />
+    <None Remove="Scripts\005-AddPayersTable.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\001-AddUsersTable.sql" />
+    <EmbeddedResource Include="Scripts\002-AddReceiptSessionTable.sql" />
+    <EmbeddedResource Include="Scripts\003-AddReceiptTable.sql" />
+    <EmbeddedResource Include="Scripts\004-AddProductTable.sql" />
+    <EmbeddedResource Include="Scripts\005-AddPayersTable.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="dbup-core" Version="5.0.37" />
     <PackageReference Include="dbup-sqlserver" Version="5.0.37" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
@@ -15,12 +31,5 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Scripts\" />
-	  <None Update="appsettings.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-</ItemGroup>
 
 </Project>

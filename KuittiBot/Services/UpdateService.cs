@@ -37,41 +37,53 @@ namespace KuittiBot.Functions.Services
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
         private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
-        private UserSessionInfo _currentUser;
+        private IUserDataRepository _userDataRepository;
+        private IReceiptSessionRepository _receiptSessionRepository;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IReceiptSessionCache receiptSessionCache, IReceiptParsingService receiptParsingService)
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IUserDataRepository userDataRepository, IReceiptSessionCache receiptSessionCache, IReceiptSessionRepository receiptSessionRepository, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
             _userDataCache = userDataCache;
+            _userDataRepository = userDataRepository;
             _receiptSessionCache = receiptSessionCache;
+            _receiptSessionRepository = receiptSessionRepository;
             _receiptParsingService = receiptParsingService;
             _openAiClient = new OpenAIClient(OpenAIAuthentication.LoadFromEnv());
         }
 
-        public async Task InitializeParseingForUser(Update update)
+        public async Task InitializeParsingForUser(Update update)
         {
             if (!(update.Message is { } message)) return;
 
-            _currentUser = new UserSessionInfo() 
-            {
-                UserId = message.From.Id.ToString(),
-                FileId = update.Message.Document?.FileId ?? update.Message.Photo?.LastOrDefault().FileId
-            };
-
             var stream = await DownloadFileAsync(update);
-            await UploadFileToStorage(update, stream);
 
-            Receipt receipt = new Receipt();
-            receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+            SessionInfo currentSession = CreateSessionInfo(message, stream);
 
-            // TODO: 
-            // Tee receiptSessionCache
-            //   --> Method: Set Session
-            //          --> Entity: Receipt entityn kopio
+            await UploadFileAsync(update, stream, currentSession);
 
+            // TODO remove
+            var userInfoToUpload = new ReceiptSessionEntity
+            {
+                UserId = currentSession.UserId,
+                FileName = currentSession.FileName,
+                Hash = currentSession.Hash,
+                SessionSuccessful = false
+            };
+            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
+            //
 
-            await _receiptSessionCache.UpdateSessionSuccessState(_currentUser.Hash, true);
+            await _receiptSessionRepository.InsertSessionIfNotExistAsync(currentSession);
+
+            Receipt receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+
+            // TODO remove
+            await _receiptSessionCache.UpdateSessionSuccessState(currentSession.Hash, true);
+            //
+
+            currentSession.SessionSuccessful = true;
+            currentSession.ShopName = receipt.ShopName;
+            await _receiptSessionRepository.UpdateSession(currentSession);
 
             await PrintReceiptToUser(update, receipt);
         }
@@ -91,31 +103,50 @@ namespace KuittiBot.Functions.Services
         }
 
 
-        private async Task UploadFileToStorage(Update update, Stream stream)
+        private async Task UploadFileAsync(Update update, Stream stream, SessionInfo currentSession)
         {
             stream.Position = 0;
-
-            _currentUser.DocumentType = update.Message?.Document?.MimeType ?? "application/jpg";
-
-            var fileHash = ComputeHash(stream);
-            _currentUser.Hash = fileHash;
-            _currentUser.FileName = fileHash +  (_currentUser.DocumentType == "application/jpg" ? ".jpg" : ".pdf");
-
             var uploader = new AzureBlobUploader();
-            await uploader.UploadFileStreamIfNotExistAsync("receipt-cache", _currentUser.FileName, stream, _currentUser.DocumentType);
+            await uploader.UploadFileStreamIfNotExistAsync("receipt-cache", currentSession.FileName, stream, currentSession.DocumentType);
+        }
 
-            var userInfoToUpload = new ReceiptSessionEntity
+        private SessionInfo CreateSessionInfo(Telegram.Bot.Types.Message message, Stream stream)
+        {
+            var hash = ComputeHash(stream);
+            var documentType = message?.Document?.MimeType ?? "application/jpg";
+
+            SessionInfo newSession = new SessionInfo()
             {
-                UserId = _currentUser.UserId,
-                FileName = _currentUser.FileName,
-                FileId = _currentUser.FileId,
-                Hash = _currentUser.Hash,
+                UserId = message.From.Id.ToString(),
+                DocumentType = documentType,
+                Hash = hash,
+                FileName = hash + (documentType == "application/jpg" ? ".jpg" : ".pdf"),
                 SessionSuccessful = false
             };
 
-            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
+            return newSession;
         }
 
+        private string ComputeHash(Stream stream)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                // Reset the position of the stream to ensure it's read from the start
+                stream.Position = 0;
+
+                // Compute the hash of the stream
+                byte[] hash = sha256.ComputeHash(stream);
+
+                // Convert the byte array to a hexadecimal string
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in hash)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+
+                return sb.ToString();
+            }
+        }
 
         private async Task<Stream> DownloadFileAsync(Update update)
         {
@@ -143,28 +174,6 @@ namespace KuittiBot.Functions.Services
             }
 
             return stream;
-        }
-
-
-        private static string ComputeHash(Stream stream)
-        {
-            using (var sha256 = SHA256.Create())
-            {
-                // Reset the position of the stream to ensure it's read from the start
-                stream.Position = 0;
-
-                // Compute the hash of the stream
-                byte[] hash = sha256.ComputeHash(stream);
-
-                // Convert the byte array to a hexadecimal string
-                StringBuilder sb = new StringBuilder();
-                foreach (byte b in hash)
-                {
-                    sb.Append(b.ToString("x2"));
-                }
-
-                return sb.ToString();
-            }
         }
 
 
@@ -303,13 +312,13 @@ namespace KuittiBot.Functions.Services
             {
                 var uploader = new AzureBlobUploader();
 
-                var fileWasCopied = await uploader.CopyFileToAnotherContainerIfNotExist("receipt-cache", "kuittibot-training", _currentUser.FileName);
+                var fileWasCopied = await uploader.CopyFileToAnotherContainerIfNotExist("receipt-cache", "kuittibot-training", _currentSession.FileName);
 
                 if (fileWasCopied)
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: $"Tiedosto '{_currentUser.FileName}' siirrettiin training dataan");
+                        text: $"Tiedosto '{_currentSession.FileName}' siirrettiin training dataan");
                 }
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,

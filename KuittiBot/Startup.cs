@@ -70,16 +70,8 @@ namespace KuittiBot.Functions
                 rowKeyProperty: nameof(ReceiptSessionEntity.Hash))
             );
 
-
-            // TODO blobstorage
-            //builder.Services.AddTransient<IStorage<SendPurchaseOrders.RecipeStorage>,
-            //    BlobStorage<SendPurchaseOrders.RecipeStorage>>());
-            //builder.Services.Configure<BlobStorageConfiguration<SendPurchaseOrders.ArchiveStorage>>(config =>
-            //{
-            //    config.ConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process);
-            //    config.ContainerName = "recipecache";
-            //    config.CreateContainer = true;
-            //});
+            // SQL UserDataRepository
+            builder.Services.AddTransient<IUserDataRepository, UserDataRepository>();
         }
     }
 }

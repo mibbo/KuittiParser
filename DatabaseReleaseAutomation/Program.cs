@@ -8,17 +8,30 @@ namespace DatabaseReleaseAutomation.DbUpDemo
 {
     class Program
     {
+        static string GetProjectRootDirectory()
+        {
+            var currentDirectory = Directory.GetCurrentDirectory();
+            while (!currentDirectory.EndsWith("DatabaseReleaseAutomation"))
+            {
+                currentDirectory = Directory.GetParent(currentDirectory).FullName;
+            }
+            return currentDirectory;
+        }
+
         static int Main(string[] args)
         {
+            // Use the method to find the project root directory
+            var projectRoot = GetProjectRootDirectory();
+            var dir = Directory.GetCurrentDirectory();
+
             // Loads connection string settings from appsettings.json, environment variables and command line
             var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
+                .SetBasePath(projectRoot) // Set the base path to the project root
                 .AddJsonFile("appsettings.json", true)
                 .AddEnvironmentVariables()
                 .AddCommandLine(args)
                 .Build();
 
-            var dir = Directory.GetCurrentDirectory();
 
             // Sets the connection string value from the command line or loaded from app settings
             var connectionString = args.FirstOrDefault() ?? configuration.GetConnectionString("DbUpSqlConnectionString");

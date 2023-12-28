@@ -31,8 +31,8 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 using var connection = new SqlConnection(_connectionString);
-                var query = "INSERT INTO Users (Id, UserName, State) VALUES, (@Id, @UserName, @State)";
-                var rowsAffected = connection.ExecuteAsync(query, user);
+                var query = "INSERT INTO Users (Id, UserName, CurrentState) VALUES (@Id, @UserName, @CurrentState)";
+                var rowsAffected = await connection.ExecuteAsync(query, user);
             }
             catch (Exception e)
             {

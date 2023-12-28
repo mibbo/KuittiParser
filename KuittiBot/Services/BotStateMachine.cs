@@ -20,13 +20,15 @@ namespace KuittiBot.Functions.Services
     {
         private readonly UpdateService _updateService;
         private IUserDataCache _userDataCache;
+        private IUserDataRepository _userDataRepository;
         private readonly List<StateTransition> _transitions = new List<StateTransition>();
         private static bool _isNewUser;
 
-        public BotStateMachine(UpdateService updateService, IUserDataCache userDataCache)
+        public BotStateMachine(UpdateService updateService, IUserDataCache userDataCache, IUserDataRepository userDataRepository)
         {
             _updateService = updateService;
             _userDataCache = userDataCache;
+            _userDataRepository = userDataRepository;
             InitializeTransitions();
         }
 
@@ -48,6 +50,7 @@ namespace KuittiBot.Functions.Services
           
             var userId = message.From.Id.ToString();
             var cachedUser = await _userDataCache.GetUserByIdAsync(userId);
+            var cachedUser2 = await _userDataRepository.GetUserByIdAsync(userId);
 
             _isNewUser = cachedUser == null;
             var user = cachedUser ?? new UserDataEntity 
@@ -71,6 +74,7 @@ namespace KuittiBot.Functions.Services
                 }
 
                 await _userDataCache.UpdateUserAsync(user);
+                await _userDataRepository.UpdateUserAsync(user);
 
                 await transition.Action(update);
             }
@@ -97,7 +101,7 @@ namespace KuittiBot.Functions.Services
         private async Task HandleReceipt(Update update)
         {
             // Implement logic to handle receipt
-            await _updateService.InitializeParseingForUser(update);
+            await _updateService.InitializeParsingForUser(update);
         }
 
         private async Task HandlePayers(Update update)

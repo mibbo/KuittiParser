@@ -80,6 +80,4 @@ namespace KuittiBot.Functions.Domain.Models
         }
 
     }
-
-
 }
