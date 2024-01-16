@@ -10,9 +10,11 @@ namespace KuittiBot.Functions.Domain.Abstractions
 {
     public interface IReceiptSessionRepository
     {
-        Task InsertSessionIfNotExistAsync(SessionInfo session);
+        Task<int> InitializeSession(SessionInfo session);
         //Task<int> GetSessionCountByUserId(string userId);
         //Task<ReceiptSessionEntity> GetSessionByHash(string hash);
         Task UpdateSession(SessionInfo updatedSession);
+        Task SetSessionPayers(List<string> payers, int sessionId, string userId);
+        Task SaveReceiptAsync(Receipt receipt/*, ReceiptSessionEntity session*/);
     }
 }

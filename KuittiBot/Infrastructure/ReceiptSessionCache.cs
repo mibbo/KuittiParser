@@ -52,7 +52,20 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 Expression<Func<ReceiptSessionEntity, bool>> query = file => file.UserId == userId;
-                var file = await _tableDataStore.FindAsync(query);
+
+                var client = new TableDataStore<ReceiptSessionEntity>(
+                    Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
+                    "usersessioncache",
+                    true,
+                    "usersessioncache",
+                    true,
+                    Azure.Storage.Blobs.Models.PublicAccessType.None,
+                    partitionKeyProperty: nameof(ReceiptSessionEntity.UserId),
+                    rowKeyProperty: nameof(ReceiptSessionEntity.Hash));
+
+
+
+                var file = await client.FindAsync(query);
                 return file.Count();
             }
             catch (Exception e)
@@ -100,4 +113,5 @@ namespace KuittiBot.Functions.Infrastructure
                 throw new Exception("Updating the success state in session cache table failed: " + e.Message, e);
             }
         }
+    }
 }

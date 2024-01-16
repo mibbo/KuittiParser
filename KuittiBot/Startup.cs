@@ -1,4 +1,5 @@
 using AzureTableDataStore;
+using Dapper;
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
 using KuittiBot.Functions.Infrastructure;
@@ -6,7 +7,9 @@ using KuittiBot.Functions.Services;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
+using System.Diagnostics.Metrics;
 using Telegram.Bot;
 
 [assembly: FunctionsStartup(typeof(KuittiBot.Functions.Startup))]
@@ -43,7 +46,7 @@ namespace KuittiBot.Functions
             builder.Services.AddSingleton<IBotStateMachine>(provider => provider.GetRequiredService<BotStateMachine>());
 
             // UserDataCache
-            builder.Services.AddSingleton<IUserDataCache, UserDataCache>();
+            //builder.Services.AddSingleton<IUserDataCache, UserDataCache>();
             builder.Services.AddSingleton<ITableDataStore<UserDataEntity>, TableDataStore<UserDataEntity>>(sp =>
                 new TableDataStore<UserDataEntity>(
                 Environment.GetEnvironmentVariable("AzureWebJobsStorage", EnvironmentVariableTarget.Process),
@@ -52,7 +55,7 @@ namespace KuittiBot.Functions
                 "userdatacache",
                 true,
                 Azure.Storage.Blobs.Models.PublicAccessType.None,
-                partitionKeyProperty: nameof(UserDataEntity.Id),
+                partitionKeyProperty: nameof(UserDataEntity.UserId),
                 rowKeyProperty: nameof(UserDataEntity.UserName))
             );
 
@@ -71,7 +74,19 @@ namespace KuittiBot.Functions
             );
 
             // SQL UserDataRepository
-            builder.Services.AddTransient<IUserDataRepository, UserDataRepository>();
+            builder.Services.AddTransient<IUserDataRepository, UserDataRepository>(provider =>
+            {
+                var logger = provider.GetRequiredService<ILogger<UserDataRepository>>();
+                var connectionString = Environment.GetEnvironmentVariable("KuittibotSqlConnectionString", EnvironmentVariableTarget.Process);
+                return new UserDataRepository(logger, connectionString);
+            });
+
+            builder.Services.AddTransient<IReceiptSessionRepository, ReceiptSessionRepository>(provider =>
+            {
+                var logger = provider.GetRequiredService<ILogger<ReceiptSessionRepository>>();
+                var connectionString = Environment.GetEnvironmentVariable("KuittibotSqlConnectionString", EnvironmentVariableTarget.Process);
+                return new ReceiptSessionRepository(logger, connectionString);
+            });
         }
     }
 }

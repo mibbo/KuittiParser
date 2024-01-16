@@ -10,12 +10,14 @@ namespace KuittiBot.Functions.Domain.Models
 {
     public class Receipt
     {
+        public int SessionId { get; set; }
         public string Name { get; set; }
         public string ShopName { get; set; }
         public decimal RawTotalCost { get; set; }
         public float Confidence { get; set; }
         public List<Product> Products { get; set; }
         public List<Payer> Payers { get; set; }
+        public bool SessionSuccessful { get; set; }
         public decimal GetReceiptTotalCost()
         {
             decimal totalCost = 0;

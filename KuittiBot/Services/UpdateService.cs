@@ -31,20 +31,22 @@ namespace KuittiBot.Functions.Services
     {
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<UpdateService> _logger;
-        private IUserDataCache _userDataCache;
+        //private IUserDataCache _userDataCache;
         private IReceiptSessionCache _receiptSessionCache;
         private IReceiptParsingService _receiptParsingService;
-        private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
-        private static string _testikuitti = "maukan_kuitti.pdf";
         private readonly OpenAIClient _openAiClient;
         private IUserDataRepository _userDataRepository;
         private IReceiptSessionRepository _receiptSessionRepository;
 
-        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger, IUserDataCache userDataCache, IUserDataRepository userDataRepository, IReceiptSessionCache receiptSessionCache, IReceiptSessionRepository receiptSessionRepository, IReceiptParsingService receiptParsingService)
+        private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
+        private static string _testikuitti = "testikuitti.pdf";
+        private string _fileName = "";
+
+        public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger,/* IUserDataCache userDataCache, */IUserDataRepository userDataRepository, IReceiptSessionCache receiptSessionCache, IReceiptSessionRepository receiptSessionRepository, IReceiptParsingService receiptParsingService)
         {
             _botClient = botClient;
             _logger = logger;
-            _userDataCache = userDataCache;
+            //_userDataCache = userDataCache;
             _userDataRepository = userDataRepository;
             _receiptSessionCache = receiptSessionCache;
             _receiptSessionRepository = receiptSessionRepository;
@@ -70,12 +72,17 @@ namespace KuittiBot.Functions.Services
                 Hash = currentSession.Hash,
                 SessionSuccessful = false
             };
-            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
-            //
+            _fileName = userInfoToUpload.FileName;
 
-            await _receiptSessionRepository.InsertSessionIfNotExistAsync(currentSession);
+            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
+
+            var sessionId = await _receiptSessionRepository.InitializeSession(currentSession);
+
+            await _userDataRepository.SetNewSessionForUserAsync(sessionId, currentSession.UserId);
 
             Receipt receipt = await _receiptParsingService.ParseProductsFromReceiptImageAsync(stream);
+            receipt.SessionId = sessionId;
+            receipt.SessionSuccessful = false;
 
             // TODO remove
             await _receiptSessionCache.UpdateSessionSuccessState(currentSession.Hash, true);
@@ -83,23 +90,44 @@ namespace KuittiBot.Functions.Services
 
             currentSession.SessionSuccessful = true;
             currentSession.ShopName = receipt.ShopName;
-            await _receiptSessionRepository.UpdateSession(currentSession);
+            currentSession.RawTotalCost = receipt.RawTotalCost;
+
+            await _receiptSessionRepository.SaveReceiptAsync(receipt);
 
             await PrintReceiptToUser(update, receipt);
+
+            await AskPayers(update);
         }
 
-        public async Task CreatePayerButtons(Update update)
+        public async Task HandlePayersAndAskFirstProduct(Update update)
         {
             if (!(update.Message is { } message)) return;
-            var example = "Tommi Lumppa Kalevi";
             var payersRaw = message.Text;
+            List<string> payers = payersRaw.Split(" ").ToList();
+            var currentUser = message.From.Id.ToString();
 
-            // TODO:
-            //   --> Method: Set SessionPayers
-            //   --> Method: Get SessionPayers
-            //            var payers = message.Text.Split(" ").ToList().Select(payer => payer.Trim());
+            await AddSessionPayers(payers, currentUser);
 
-            // Palauta: Napit jokaiselle maksajalle
+            ReturnPayerInlineKeyboard(payers);
+        }
+
+        public async Task AddSessionPayers(List<string> payers, string currentUser)
+        {
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+            await _receiptSessionRepository.SetSessionPayers(payers, currentSession, currentUser);
+        }
+
+        public async Task AskPayers(Update update)
+        {
+            if (!(update.Message is { } message)) return;
+            
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"Anna kuitin maksajat:");
+            }
+            Console.WriteLine("Anna kuitin maksajat:");
         }
 
 
@@ -117,6 +145,7 @@ namespace KuittiBot.Functions.Services
 
             SessionInfo newSession = new SessionInfo()
             {
+                SessionId = Guid.NewGuid().ToString(),
                 UserId = message.From.Id.ToString(),
                 DocumentType = documentType,
                 Hash = hash,
@@ -202,36 +231,36 @@ namespace KuittiBot.Functions.Services
 
         public async Task PrintLeaderboard(Update update)
         {
-            if (!(update.Message is { } message)) return;
+            //if (!(update.Message is { } message)) return;
 
-            var leaderboard = new Dictionary<string, int>();
+            //var leaderboard = new Dictionary<string, int>();
 
-            var allUsers = await _userDataCache.GetAllUsers();
-            foreach (var user in allUsers)
-            {
-                var fileCount = await _receiptSessionCache.GetSessionCountByUserId(user.Id);
+            //var allUsers = await _userDataCache.GetAllUsers();
+            //foreach (var user in allUsers)
+            //{
+            //    var fileCount = await _receiptSessionCache.GetSessionCountByUserId(user.UserId);
 
-                leaderboard.Add(user.UserName, fileCount);
-            }
+            //    leaderboard.Add(user.UserName, fileCount);
+            //}
 
-            // Sort the dictionary and take the top 10 users
-            var topUsers = leaderboard.OrderByDescending(pair => pair.Value).Take(10);
-            // Create the formatted string
-            var leaderboardToPrint = string.Join("\n", topUsers.Select(userinfo => $"{userinfo.Key}: {userinfo.Value}"));
+            //// Sort the dictionary and take the top 10 users
+            //var topUsers = leaderboard.OrderByDescending(pair => pair.Value).Take(10);
+            //// Create the formatted string
+            //var leaderboardToPrint = string.Join("\n", topUsers.Select(userinfo => $"{userinfo.Key}: {userinfo.Value}"));
 
-            Console.WriteLine($"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
+            //Console.WriteLine($"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
 
-            if (!_isLocal)
-            {
-                await _botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
-            }
-
-            //await _botClient.SendTextMessageAsync(
+            //if (!_isLocal)
+            //{
+            //    await _botClient.SendTextMessageAsync(
             //    chatId: message.Chat.Id,
-            //    text: "Hell yeah",
-            //    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
+            //    text: $"Tässä tämän hetken tulokset:\n{leaderboardToPrint}");
+            //}
+
+            ////await _botClient.SendTextMessageAsync(
+            ////    chatId: message.Chat.Id,
+            ////    text: "Hell yeah",
+            ////    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html, replyMarkup: CreateButton());
         }
 
         public async Task PrintReceiptToUser(Update update, Receipt receipt)
@@ -283,7 +312,8 @@ namespace KuittiBot.Functions.Services
                 return;
 
 
-            var userFromCache = await _userDataCache.GetUserByIdAsync(message.From.Id.ToString());
+            //var userFromCache = await _userDataCache.GetUserByIdAsync(message.From.Id.ToString());
+            var userFromCache = await _userDataRepository.GetUserByIdAsync(message.From.Id.ToString());
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
             await _botClient.SendTextMessageAsync(
@@ -312,13 +342,13 @@ namespace KuittiBot.Functions.Services
             {
                 var uploader = new AzureBlobUploader();
 
-                var fileWasCopied = await uploader.CopyFileToAnotherContainerIfNotExist("receipt-cache", "kuittibot-training", _currentSession.FileName);
+                var fileWasCopied = await uploader.CopyFileToAnotherContainerIfNotExist("receipt-cache", "kuittibot-training", _fileName);
 
                 if (fileWasCopied)
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: $"Tiedosto '{_currentSession.FileName}' siirrettiin training dataan");
+                        text: $"Tiedosto '{_fileName}' siirrettiin training dataan");
                 }
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -361,6 +391,18 @@ namespace KuittiBot.Functions.Services
                     });
 
             return inlineKeyboard;
+        }
+
+        static InlineKeyboardButton[][] ReturnPayerInlineKeyboard(List<string> payers)
+        {
+            var inlineKeyboard = new List<InlineKeyboardButton[]>();
+
+            foreach (var buttonText in payers)
+            {
+                inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData(buttonText) });
+            }
+
+            return inlineKeyboard.ToArray();
         }
 
         public async Task CorrectTrainingData(Update update)

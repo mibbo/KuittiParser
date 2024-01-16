@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Dapper;
 using System.Data.SqlClient;
+using System.Data;
 
 namespace KuittiBot.Functions.Infrastructure
 {
@@ -31,8 +32,14 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 using var connection = new SqlConnection(_connectionString);
-                var query = "INSERT INTO Users (Id, UserName, CurrentState) VALUES (@Id, @UserName, @CurrentState)";
-                var rowsAffected = await connection.ExecuteAsync(query, user);
+                var query = "INSERT INTO Users (UserId, UserName, CurrentState) VALUES (@UserId, @UserName, @CurrentState)";
+
+                var parameters = new DynamicParameters();
+                parameters.Add("UserId", user.UserId, DbType.String);
+                parameters.Add("UserName", user.UserName, DbType.String);
+                parameters.Add("CurrentState", user.CurrentState.ToString(), DbType.String);
+
+                var rowsAffected = await connection.ExecuteAsync(query, parameters);
             }
             catch (Exception e)
             {
@@ -44,9 +51,15 @@ namespace KuittiBot.Functions.Infrastructure
         {
             try
             {
-                var query = "UPDATE Users SET UserName = @UserName, CurrentState = @CurrentState WHERE Id = @Id";
+                var query = "UPDATE Users SET UserName = @UserName, CurrentState = @CurrentState WHERE UserId = @UserId";
                 using var connection = new SqlConnection(_connectionString);
-                await connection.ExecuteAsync(query, user);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("UserId", user.UserId, DbType.String);
+                parameters.Add("UserName", user.UserName, DbType.String);
+                parameters.Add("CurrentState", user.CurrentState.ToString(), DbType.String);
+
+                await connection.ExecuteAsync(query, parameters);
             }
             catch (Exception e)
             {
@@ -58,9 +71,9 @@ namespace KuittiBot.Functions.Infrastructure
         {
             try
             {
-                var query = "SELECT * FROM Users WHERE Id = @Id";
+                var query = "SELECT * FROM Users WHERE UserId = @UserId";
                 using var connection = new SqlConnection(_connectionString);
-                return await connection.QuerySingleOrDefaultAsync<UserDataEntity>(query, new { Id = userId });
+                return await connection.QuerySingleOrDefaultAsync<UserDataEntity>(query, new { UserId = userId });
             }
             catch (Exception e)
             {
@@ -72,10 +85,22 @@ namespace KuittiBot.Functions.Infrastructure
         {
             try
             {
-                var query = "SELECT CurrentState FROM Users WHERE Id = @Id";
+                var query = "SELECT CurrentState FROM Users WHERE UserId = @UserId";
                 using var connection = new SqlConnection(_connectionString);
-                return await connection.QuerySingleOrDefaultAsync<string>(query, new { Id = userId });
-
+                return await connection.QuerySingleOrDefaultAsync<string>(query, new { UserId = userId });
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Retrieving user id '{userId}' from user table failed: " + e.Message, e);
+            }
+        }
+        public async Task<int> GetCurrentSessionByIdAsync(string userId)
+        {
+            try
+            {
+                var query = "SELECT CurrentSession FROM Users WHERE UserId = @UserId";
+                using var connection = new SqlConnection(_connectionString);
+                return await connection.QuerySingleOrDefaultAsync<int>(query, new { UserId = userId });
             }
             catch (Exception e)
             {
@@ -83,6 +108,19 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
+        public async Task SetNewSessionForUserAsync(int sessionId, string userId)
+        {
+            try
+            {
+                string query = "UPDATE Users SET CurrentSession = @SessionId WHERE UserId = @userId";
+                using var connection = new SqlConnection(_connectionString);
+                await connection.ExecuteAsync(query, new { SessionId = sessionId, UserId = userId });
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Updating the success state in session cache table failed: " + e.Message, e);
+            }
+        }
 
         public async Task<IList<UserDataEntity>> GetAllUsers()
         {

@@ -19,23 +19,23 @@ namespace KuittiBot.Functions.Services
     public class BotStateMachine : IBotStateMachine
     {
         private readonly UpdateService _updateService;
-        private IUserDataCache _userDataCache;
+        //private IUserDataCache _userDataCache;
         private IUserDataRepository _userDataRepository;
         private readonly List<StateTransition> _transitions = new List<StateTransition>();
         private static bool _isNewUser;
 
-        public BotStateMachine(UpdateService updateService, IUserDataCache userDataCache, IUserDataRepository userDataRepository)
+        public BotStateMachine(UpdateService updateService, /*IUserDataCache userDataCache, */IUserDataRepository userDataRepository)
         {
             _updateService = updateService;
-            _userDataCache = userDataCache;
+            //_userDataCache = userDataCache;
             _userDataRepository = userDataRepository;
             InitializeTransitions();
         }
 
         private void InitializeTransitions()
         {
-            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.WaitingForInput, Action = HandleReceipt });
-            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.WaitingForInput, Action = HandlePayers });
+            _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivedReceipt, Action = HandleReceipt });
+            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.ReceivedReceipt, Action = HandlePayers });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
@@ -49,16 +49,21 @@ namespace KuittiBot.Functions.Services
                 return;
           
             var userId = message.From.Id.ToString();
-            var cachedUser = await _userDataCache.GetUserByIdAsync(userId);
-            var cachedUser2 = await _userDataRepository.GetUserByIdAsync(userId);
+            //var cachedUser = await _userDataCache.GetUserByIdAsync(userId);
+            var cachedUser = await _userDataRepository.GetUserByIdAsync(userId);
 
             _isNewUser = cachedUser == null;
             var user = cachedUser ?? new UserDataEntity 
                 {
-                    Id = userId,
+                    UserId = userId,
                     UserName = update.Message.From.Username,
                     CurrentState = BotState.WaitingForInput 
                 };
+
+            if (cachedUser == null)
+            {
+                await _userDataRepository.InsertAsync(user);
+            }
 
             // Determine event and find transition
             var botEvent = DetermineEvent(update);
@@ -67,16 +72,17 @@ namespace KuittiBot.Functions.Services
             // If the transition is succesfull, initialize next stage for the session
             if (transition != null)
             {
-                if (botEvent != BotEvent.ReceivedCommand)
-                {
-                    user.CurrentState = transition.NextState;                 // DISABLED -> TODO next transition
-                    //user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition
-                }
 
-                await _userDataCache.UpdateUserAsync(user);
-                await _userDataRepository.UpdateUserAsync(user);
 
                 await transition.Action(update);
+
+                if (botEvent != BotEvent.ReceivedCommand)
+                {
+                    user.CurrentState = transition.NextState;
+                    //user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition
+                }
+                //await _userDataCache.UpdateUserAsync(user);
+                await _userDataRepository.UpdateUserAsync(user);
             }
         }
 
@@ -107,7 +113,7 @@ namespace KuittiBot.Functions.Services
         private async Task HandlePayers(Update update)
         {
             // Implement logic to handle receipt
-            await _updateService.CreatePayerButtons(update);
+            await _updateService.HandlePayersAndAskFirstProduct(update);
         }
 
         private async Task UserCommand(Update update)
