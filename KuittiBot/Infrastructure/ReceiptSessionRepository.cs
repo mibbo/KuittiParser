@@ -79,75 +79,6 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        //public async Task<int> GetSessionCountByUserId(string userId)
-        //{
-        //    try
-        //    {
-        //        Expression<Func<ReceiptSessionEntity, bool>> query = file => file.UserId == userId;
-        //        var file = await _tableDataStore.FindAsync(query);
-        //        return file.Count();
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        throw new Exception("Retrieving from session cache table failed: " + e.Message, e);
-        //    }
-        //}
-
-        //public async Task<ReceiptSessionEntity> GetSessionByHash(string hash)
-        //{
-        //    try
-        //    {
-        //        Expression<Func<ReceiptSessionEntity, bool>> query = file => file.Hash == hash;
-        //        var file = await _tableDataStore.FindAsync(query);
-        //        return file.ToList().FirstOrDefault();
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        throw new Exception("Retrieving from session cache table failed: " + e.Message, e);
-        //    }
-        //}
-
-        public async Task UpdateSession(SessionInfo updatedSession)
-        {
-            try
-            {
-                string query = "UPDATE Receipts SET SessionSuccessful = @SessionSuccessful, ShopName = @ShopName, RawTotalCost = @RawTotalCost WHERE Hash = @Hash";
-                using var connection = new SqlConnection(_connectionString);
-                await connection.ExecuteAsync(query, updatedSession);
-            }
-            catch (Exception e)
-            {
-                throw new Exception("Updating the success state in session cache table failed: " + e.Message, e);
-            }
-        }
-
-
-        //public async Task<int> GetCount(string userId)
-        //{
-        //    try
-        //    {
-        //        Expression<Func<UserDataCacheEntity, bool>> query = user => user.Id == userId;
-        //        var user = await _tableDataStore.FindAsync(query);
-        //        return user.ToList().Count()+1;
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        throw new Exception("Retrieving from session cache table failed: " + e.Message, e);
-        //    }
-        //}
-
-        //public async Task DeleteAsync(string kohdetunnus)
-        //{
-        //    try
-        //    {
-        //        await _tableDataStore.DeleteAsync(BatchingMode.None, x => x.Id == kohdetunnus);
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        throw new Exception($"Failed to delete property number {kohdetunnus}: " + e.Message, e);
-        //    }
-        //}
-
         public async Task SetSessionPayers(List<string> payers, int sessionId, string userId)
         {
             try
@@ -189,17 +120,18 @@ namespace KuittiBot.Functions.Infrastructure
                 //    new { session.Hash, session.FileName, session.SessionSuccessful, receipt.ShopName, receipt.RawTotalCost },
                 //    transaction);
 
-                string query = "UPDATE Receipts SET SessionSuccessful = @SessionSuccessful, ShopName = @ShopName, RawTotalCost = @RawTotalCost WHERE SessionId = @SessionId;";
-                await connection.ExecuteAsync(query, new { receipt.SessionSuccessful, receipt.ShopName, receipt.RawTotalCost, SessionId = receipt.SessionId}, transaction);
-
+                int productNumber = 0;
+                string query = "UPDATE Receipts SET SessionSuccessful = @SessionSuccessful, ShopName = @ShopName, RawTotalCost = @RawTotalCost, ProductsInTotal = @ProductsInTotal, CurrentProduct = @CurrentProduct WHERE SessionId = @SessionId;";
+                await connection.ExecuteAsync(query, new { receipt.SessionSuccessful, receipt.ShopName, receipt.RawTotalCost, SessionId = receipt.SessionId, ProductsInTotal = receipt.Products.Count, CurrentProduct = productNumber }, transaction);
 
                 foreach (var product in receipt.Products)
                 {
                     // Insert product and get ProductId
                     var productId = await connection.ExecuteScalarAsync<int>(
-                        "INSERT INTO Products (Cost) OUTPUT INSERTED.ProductId VALUES (@Cost);",
-                        new { product.Cost },
+                        "INSERT INTO Products (ProductNumber, Name, Cost) OUTPUT INSERTED.ProductId VALUES (@ProductNumber, @Name, @Cost);",
+                        new { ProductNumber = productNumber, product.Name, product.Cost },
                         transaction);
+                    productNumber++;
 
                     // Insert discounts if any
                     foreach (var discount in product.Discounts ?? Enumerable.Empty<decimal>())
@@ -216,6 +148,126 @@ namespace KuittiBot.Functions.Infrastructure
                         new { SessionId = receipt.SessionId, ProductId = productId, DividedCost = product.DividedCost },
                         transaction);
                 }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+
+
+
+        public async Task<Product> GetNextProductBySessionIdAsync(int sessionId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            
+            var productNumberQuery = @"SELECT CurrentProduct FROM Receipts WHERE SessionId = @SessionId;";
+            var nextProductNumber = await connection.QuerySingleOrDefaultAsync<int>(productNumberQuery, new
+            {
+                SessionId = sessionId
+            });
+
+            var query = @"
+                SELECT p.*
+                FROM Products p
+                JOIN ReceiptProducts rp ON p.ProductId = rp.ProductId
+                WHERE p.ProductNumber = @ProductNumber AND rp.SessionId = @SessionId;";
+
+            var product = await connection.QuerySingleOrDefaultAsync<Product>(query, new
+            {
+                ProductNumber = nextProductNumber,
+                SessionId = sessionId
+            });
+
+            return product;
+        }
+
+        public async Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId)
+        {
+            var updateQuery = "UPDATE Receipts SET CurrentProduct = CurrentProduct + 1 WHERE SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            await connection.ExecuteAsync(updateQuery, new { SessionId = sessionId });
+
+            var checkQuery = "SELECT CurrentProduct, ProductsInTotal FROM Receipts WHERE SessionId = @SessionId;";
+            var productInfo = await connection.QuerySingleOrDefaultAsync<(int CurrentProduct, int ProductsInTotal)>(checkQuery, new { SessionId = sessionId });
+
+            return productInfo.CurrentProduct == productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
+        }
+
+        //public async Task<(Product ProcessedProduct, bool IsProcessingComplete)> ProcessNextProductAndCheckIfDoneAsync(int sessionId)
+        //{
+        //    using var connection = new SqlConnection(_connectionString);
+        //    await connection.OpenAsync();
+
+        //    using var transaction = connection.BeginTransaction();
+
+        //    try
+        //    {
+        //        // Update CurrentProduct
+        //        var updateQuery = "UPDATE Receipts SET CurrentProduct = CurrentProduct + 1 OUTPUT INSERTED.CurrentProduct WHERE SessionId = @SessionId;";
+        //        var currentProductNumber = await connection.ExecuteScalarAsync<int>(updateQuery, new { SessionId = sessionId }, transaction);
+
+        //        // Get the processed product
+        //        var productQuery = @"
+        //            SELECT p.*
+        //            FROM Products p
+        //            JOIN ReceiptProducts rp ON p.ProductId = rp.ProductId
+        //            WHERE p.ProductNumber = @ProductNumber AND rp.SessionId = @SessionId;";
+        //        var product = await connection.QuerySingleOrDefaultAsync<Product>(productQuery, new { ProductNumber = currentProductNumber, SessionId = sessionId }, transaction);
+
+        //        // Check if processing is complete
+        //        var checkQuery = "SELECT ProductsInTotal FROM Receipts WHERE SessionId = @SessionId;";
+        //        var productsInTotal = await connection.QuerySingleAsync<int>(checkQuery, new { SessionId = sessionId }, transaction);
+
+        //        transaction.Commit();
+
+        //        return (product, currentProductNumber == productsInTotal);
+        //    }
+        //    catch
+        //    {
+        //        transaction.Rollback();
+        //        throw;
+        //    }
+        //}
+
+
+        public async Task<List<string>> GetPayerNamesBySessionIdAsync(int sessionId)
+        {
+            var query = @"
+                SELECT p.Name 
+                FROM Payers p
+                JOIN PayerReceipts pr ON p.PayerId = pr.PayerId
+                WHERE pr.SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            var payerNames = await connection.QueryAsync<string>(query, new { SessionId = sessionId });
+
+            return payerNames.ToList();
+        }
+
+        public async Task DeleteAllDataAsync()
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                // Delete data from tables in reverse order of dependency
+                await connection.ExecuteAsync("DELETE FROM PayerProducts;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM PayerReceipts;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM ReceiptProducts;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM ProductDiscounts;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Products;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Payers;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Users;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Receipts;", transaction: transaction);
 
                 transaction.Commit();
             }

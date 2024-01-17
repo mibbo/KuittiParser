@@ -108,7 +108,40 @@ namespace KuittiBot.Functions.Services
 
             await AddSessionPayers(payers, currentUser);
 
-            ReturnPayerInlineKeyboard(payers);
+            await AskProducts(update);
+        }
+
+        public async Task AskProducts(Update update)
+        {
+            if (!(update.Message is { } message)) return;
+
+            var currentUser = message.From.Id.ToString();
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+
+            var product = _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession).Result;
+
+            bool productsDone = await _receiptSessionRepository.ProcessNextProductAndCheckIfDoneAsync(currentSession);
+
+            if (productsDone)
+            {
+                Console.WriteLine("Kuitti parsettu!");
+                return;
+            }
+            var payers = await _receiptSessionRepository.GetPayerNamesBySessionIdAsync(currentSession);
+
+            await SendInlineKeyboardAsync(message.Chat.Id, payers, product);
+        }
+
+        public async Task SendInlineKeyboardAsync(ChatId chatId, List<string> payers, Product product)
+        {
+            var inlineKeyboard = ReturnPayerInlineKeyboard(payers);
+            var inlineKeyboardMarkup = new InlineKeyboardMarkup(inlineKeyboard);
+
+            await _botClient.SendTextMessageAsync(
+                chatId: chatId,
+                text: $"Kenen tämä tuote on:\n\n {product.Name} - {product.Cost}",
+                replyMarkup: inlineKeyboardMarkup
+            );
         }
 
         public async Task AddSessionPayers(List<string> payers, string currentUser)
@@ -295,6 +328,21 @@ namespace KuittiBot.Functions.Services
                 //    chatId: message.Chat.Id,
                 //    text: choice.Message,
                 //    parseMode: ParseMode.Html);
+            }
+        }
+
+        public async Task DeleteAllData(Update update)
+        {
+            if (!(update.Message is { } message)) return;
+            
+            _receiptSessionRepository.DeleteAllDataAsync();
+
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"All data deleted",
+                    parseMode: ParseMode.Html);
             }
         }
 

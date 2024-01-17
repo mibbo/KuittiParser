@@ -35,11 +35,14 @@ namespace KuittiBot.Functions.Services
         private void InitializeTransitions()
         {
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedReceiptDocument, NextState = BotState.ReceivedReceipt, Action = HandleReceipt });
-            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.ReceivedReceipt, Action = HandlePayers });
+            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = HandlePayers });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
-            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
-            //_transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
+            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
         }
 
 
@@ -116,6 +119,17 @@ namespace KuittiBot.Functions.Services
             await _updateService.HandlePayersAndAskFirstProduct(update);
         }
 
+        private async Task HandleItemAllocation(Update update)
+        {
+            // Implement logic to handle receipt
+            await _updateService.AskProducts(update);
+        }
+
+        public async Task ShowSummary(Update update)
+        {
+            await _updateService.PrintLeaderboard(update);
+        }
+
         private async Task UserCommand(Update update)
         {
 
@@ -128,6 +142,11 @@ namespace KuittiBot.Functions.Services
             if (update.Message.Text.ToLower().Contains("/top"))
             {
                 await _updateService.PrintLeaderboard(update);
+            }
+
+            if (update.Message.Text.ToLower().Contains("/delete"))
+            {
+                await _updateService.DeleteAllData(update);
             }
 
             if (update.Message.Text == "/CorrectTrainingLabels")

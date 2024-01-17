@@ -13,8 +13,13 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task<int> InitializeSession(SessionInfo session);
         //Task<int> GetSessionCountByUserId(string userId);
         //Task<ReceiptSessionEntity> GetSessionByHash(string hash);
-        Task UpdateSession(SessionInfo updatedSession);
+        //Task UpdateSession(SessionInfo updatedSession);
         Task SetSessionPayers(List<string> payers, int sessionId, string userId);
         Task SaveReceiptAsync(Receipt receipt/*, ReceiptSessionEntity session*/);
+        Task<Product> GetNextProductBySessionIdAsync(int sessionId);
+        Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId);
+        //Task<(Product ProcessedProduct, bool IsProcessingComplete)> ProcessNextProductAndCheckIfDoneAsync(int sessionId);
+        Task<List<string>> GetPayerNamesBySessionIdAsync(int sessionId);
+        Task DeleteAllDataAsync();
     }
 }
