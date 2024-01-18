@@ -41,16 +41,17 @@ namespace KuittiBot.Functions.Services
             _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
 
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
-            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedCommand, NextState = BotState.ReceivedReceipt, Action = UserCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCommand, NextState = BotState.AllocatingItems, Action = UserCommand });
+            _transitions.Add(new StateTransition { CurrentState = BotState.Summary, Event = BotEvent.ReceivedCommand, NextState = BotState.Summary, Action = UserCommand });
         }
 
 
         public async Task OnUpdate(Update update)
         {
-            if (!(update.Message is { } message))
-                return;
-          
+            var message = _updateService.CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
+
             var userId = message.From.Id.ToString();
             //var cachedUser = await _userDataCache.GetUserByIdAsync(userId);
             var cachedUser = await _userDataRepository.GetUserByIdAsync(userId);
@@ -59,7 +60,7 @@ namespace KuittiBot.Functions.Services
             var user = cachedUser ?? new UserDataEntity 
                 {
                     UserId = userId,
-                    UserName = update.Message.From.Username,
+                    UserName = message.From.Username,
                     CurrentState = BotState.WaitingForInput 
                 };
 
@@ -122,7 +123,7 @@ namespace KuittiBot.Functions.Services
         private async Task HandleItemAllocation(Update update)
         {
             // Implement logic to handle receipt
-            await _updateService.AskProducts(update);
+            await _updateService.HandleProductButtons(update);
         }
 
         public async Task ShowSummary(Update update)

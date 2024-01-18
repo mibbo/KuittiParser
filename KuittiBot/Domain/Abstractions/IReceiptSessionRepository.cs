@@ -18,8 +18,12 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task SaveReceiptAsync(Receipt receipt/*, ReceiptSessionEntity session*/);
         Task<Product> GetNextProductBySessionIdAsync(int sessionId);
         Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId);
+        Task<bool> CheckIfProductAskedDoneAsync(int sessionId);
         //Task<(Product ProcessedProduct, bool IsProcessingComplete)> ProcessNextProductAndCheckIfDoneAsync(int sessionId);
         Task<List<string>> GetPayerNamesBySessionIdAsync(int sessionId);
+        Task AddPayerProductAsync(int payerId, int productId);
+        Task<int> GetPayerIdByNameAndSessionIdAsync(string name, int sessionId);
+        Task<List<Payer>> GetPayersForProductBySessionAsync(int productId, int sessionId);
         Task DeleteAllDataAsync();
     }
 }

@@ -85,16 +85,13 @@ namespace KuittiBot.Functions.Infrastructure
             {
                 foreach (var payer in payers)
                 {
-                    string insertPayerQuery = "INSERT INTO Payers (UserId, Name) VALUES (@UserId, @Name); SELECT CAST(SCOPE_IDENTITY() as int);";
-                    string insertPayerReceiptQuery = "INSERT INTO PayerReceipts (PayerId, SessionId) VALUES (@PayerId, @SessionId);";
+                    string insertPayerQuery = "INSERT INTO Payers (SessionId, Name) VALUES (@SessionId, @Name); SELECT CAST(SCOPE_IDENTITY() as int);";
+                    //string insertPayerReceiptQuery = "INSERT INTO PayerReceipts (PayerId, SessionId) VALUES (@PayerId, @SessionId);";
 
                     using var connection = new SqlConnection(_connectionString);
 
                     // Insert into Payers table and get the PayerId
-                    var payerId = await connection.ExecuteScalarAsync<int>(insertPayerQuery, new { UserId = userId, Name = payer});
-
-                    // Insert into PayerReceipts table
-                    await connection.ExecuteAsync(insertPayerReceiptQuery, new { PayerId = payerId, SessionId = sessionId });
+                    var payerId = await connection.ExecuteScalarAsync<int>(insertPayerQuery, new { SessionId = sessionId, Name = payer });
                 }
             }
             catch (Exception e)
@@ -122,7 +119,7 @@ namespace KuittiBot.Functions.Infrastructure
 
                 int productNumber = 0;
                 string query = "UPDATE Receipts SET SessionSuccessful = @SessionSuccessful, ShopName = @ShopName, RawTotalCost = @RawTotalCost, ProductsInTotal = @ProductsInTotal, CurrentProduct = @CurrentProduct WHERE SessionId = @SessionId;";
-                await connection.ExecuteAsync(query, new { receipt.SessionSuccessful, receipt.ShopName, receipt.RawTotalCost, SessionId = receipt.SessionId, ProductsInTotal = receipt.Products.Count, CurrentProduct = productNumber }, transaction);
+                await connection.ExecuteAsync(query, new { receipt.SessionSuccessful, receipt.ShopName, receipt.RawTotalCost, SessionId = receipt.SessionId, ProductsInTotal = receipt.Products.Count, CurrentProduct = productNumber+1 }, transaction);
 
                 foreach (var product in receipt.Products)
                 {
@@ -164,7 +161,7 @@ namespace KuittiBot.Functions.Infrastructure
         public async Task<Product> GetNextProductBySessionIdAsync(int sessionId)
         {
             using var connection = new SqlConnection(_connectionString);
-            
+
             var productNumberQuery = @"SELECT CurrentProduct FROM Receipts WHERE SessionId = @SessionId;";
             var nextProductNumber = await connection.QuerySingleOrDefaultAsync<int>(productNumberQuery, new
             {
@@ -172,14 +169,14 @@ namespace KuittiBot.Functions.Infrastructure
             });
 
             var query = @"
-                SELECT p.*
+                SELECT p.ProductId, p.Name, p.Cost, rp.DividedCost
                 FROM Products p
                 JOIN ReceiptProducts rp ON p.ProductId = rp.ProductId
                 WHERE p.ProductNumber = @ProductNumber AND rp.SessionId = @SessionId;";
 
             var product = await connection.QuerySingleOrDefaultAsync<Product>(query, new
             {
-                ProductNumber = nextProductNumber,
+                ProductNumber = nextProductNumber-1,
                 SessionId = sessionId
             });
 
@@ -188,16 +185,39 @@ namespace KuittiBot.Functions.Infrastructure
 
         public async Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId)
         {
+            using var connection = new SqlConnection(_connectionString);
+            var checkQuery = "SELECT CurrentProduct, ProductsInTotal FROM Receipts WHERE SessionId = @SessionId;";
+            var productInfo = await connection.QuerySingleOrDefaultAsync<(int CurrentProduct, int ProductsInTotal)>(checkQuery, new { SessionId = sessionId });
+            
             var updateQuery = "UPDATE Receipts SET CurrentProduct = CurrentProduct + 1 WHERE SessionId = @SessionId;";
 
-            using var connection = new SqlConnection(_connectionString);
             await connection.ExecuteAsync(updateQuery, new { SessionId = sessionId });
 
+            return productInfo.CurrentProduct == productInfo.ProductsInTotal +1; // Return true if CurrentProduct equals ProductsInTotal
+        }
+
+        public async Task<bool> CheckIfProductAskedDoneAsync(int sessionId)
+        {
+            using var connection = new SqlConnection(_connectionString);
             var checkQuery = "SELECT CurrentProduct, ProductsInTotal FROM Receipts WHERE SessionId = @SessionId;";
             var productInfo = await connection.QuerySingleOrDefaultAsync<(int CurrentProduct, int ProductsInTotal)>(checkQuery, new { SessionId = sessionId });
 
             return productInfo.CurrentProduct == productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
         }
+
+        //public async Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId)
+        //{
+        //    using var connection = new SqlConnection(_connectionString);
+
+        //    var updateQuery = "UPDATE Receipts SET CurrentProduct = CurrentProduct + 1 WHERE SessionId = @SessionId;";
+
+        //    await connection.ExecuteAsync(updateQuery, new { SessionId = sessionId });
+
+        //    return productInfo.CurrentProduct == productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
+        //}
+
+
+
 
         //public async Task<(Product ProcessedProduct, bool IsProcessingComplete)> ProcessNextProductAndCheckIfDoneAsync(int sessionId)
         //{
@@ -239,16 +259,75 @@ namespace KuittiBot.Functions.Infrastructure
         public async Task<List<string>> GetPayerNamesBySessionIdAsync(int sessionId)
         {
             var query = @"
-                SELECT p.Name 
-                FROM Payers p
-                JOIN PayerReceipts pr ON p.PayerId = pr.PayerId
-                WHERE pr.SessionId = @SessionId;";
+                SELECT Name 
+                FROM Payers
+                WHERE SessionId = @SessionId;";
 
             using var connection = new SqlConnection(_connectionString);
             var payerNames = await connection.QueryAsync<string>(query, new { SessionId = sessionId });
 
             return payerNames.ToList();
         }
+
+        public async Task AddPayerProductAsync(int payerId, int productId)
+        {
+            var query = "INSERT INTO PayerProducts (PayerId, ProductId) VALUES (@PayerId, @ProductId);";
+
+            using var connection = new SqlConnection(_connectionString);
+            await connection.ExecuteAsync(query, new { PayerId = payerId, ProductId = productId });
+        }
+
+
+        //public async Task<Payer> GetPayerByNameAndSessionIdAsync(string name, int sessionId)
+        //{
+        //    var query = @"
+        //        SELECT *
+        //        FROM Payers
+        //        WHERE Name = @Name AND SessionId = @SessionId;";
+
+        //    using var connection = new SqlConnection(_connectionString);
+        //    return await connection.QuerySingleOrDefaultAsync<Payer>(query, new { Name = name, SessionId = sessionId });
+        //}
+
+        public async Task<int> GetPayerIdByNameAndSessionIdAsync(string name, int sessionId)
+        {
+            var query = @"
+                SELECT PayerId
+                FROM Payers
+                WHERE Name = @Name AND SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            return await connection.QuerySingleOrDefaultAsync<int>(query, new { Name = name, SessionId = sessionId });
+        }
+
+        public async Task<List<Payer>> GetPayersForProductBySessionAsync(int productId, int sessionId)
+        {
+            var query = @"
+                SELECT p.PayerId, p.Name
+                FROM Payers p
+                INNER JOIN PayerProducts pp ON p.PayerId = pp.PayerId
+                INNER JOIN ReceiptProducts rp ON pp.ProductId = rp.ProductId
+                WHERE pp.ProductId = @ProductId AND rp.SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            var payers = await connection.QueryAsync<Payer>(query, new
+            {
+                ProductId = productId,
+                SessionId = sessionId
+            });
+
+            return payers.ToList();
+        }
+
+
+
+
+
+
+
+
+
+
 
         public async Task DeleteAllDataAsync()
         {
@@ -261,7 +340,7 @@ namespace KuittiBot.Functions.Infrastructure
             {
                 // Delete data from tables in reverse order of dependency
                 await connection.ExecuteAsync("DELETE FROM PayerProducts;", transaction: transaction);
-                await connection.ExecuteAsync("DELETE FROM PayerReceipts;", transaction: transaction);
+                //await connection.ExecuteAsync("DELETE FROM PayerReceipts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM ReceiptProducts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM ProductDiscounts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Products;", transaction: transaction);

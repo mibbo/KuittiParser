@@ -24,6 +24,7 @@ using OpenAI.Models;
 using Message = OpenAI.Chat.Message;
 using KuittiBot.Functions.Infrastructure;
 using OpenAI.Threads;
+using System.Runtime.CompilerServices;
 
 namespace KuittiBot.Functions.Services
 {
@@ -39,7 +40,7 @@ namespace KuittiBot.Functions.Services
         private IReceiptSessionRepository _receiptSessionRepository;
 
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
-        private static string _testikuitti = "testikuitti.pdf";
+        private static string _testikuitti = "testikuitti_kmarket.pdf";
         private string _fileName = "";
 
         public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger,/* IUserDataCache userDataCache, */IUserDataRepository userDataRepository, IReceiptSessionCache receiptSessionCache, IReceiptSessionRepository receiptSessionRepository, IReceiptParsingService receiptParsingService)
@@ -56,7 +57,8 @@ namespace KuittiBot.Functions.Services
 
         public async Task InitializeParsingForUser(Update update)
         {
-            if (!(update.Message is { } message)) return;
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
 
             var stream = await DownloadFileAsync(update);
 
@@ -101,32 +103,108 @@ namespace KuittiBot.Functions.Services
 
         public async Task HandlePayersAndAskFirstProduct(Update update)
         {
-            if (!(update.Message is { } message)) return;
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
             var payersRaw = message.Text;
             List<string> payers = payersRaw.Split(" ").ToList();
             var currentUser = message.From.Id.ToString();
 
             await AddSessionPayers(payers, currentUser);
 
-            await AskProducts(update);
+            await AskNextProduct(update);
         }
 
-        public async Task AskProducts(Update update)
+        public async Task HandleProductButtons(Update update)
         {
-            if (!(update.Message is { } message)) return;
+            var message = CheckMessageValidity(update);
+
+
+            if (update.CallbackQuery.Data == "OK")
+            {
+
+
+                Console.WriteLine("Selkee homma!");
+                if (!_isLocal)
+                {
+                    await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Selkee homma",
+                    replyMarkup: null);
+                }
+
+                var currentUser = update.CallbackQuery.From.Id.ToString();
+                var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+                bool productsDone = await _receiptSessionRepository.ProcessNextProductAndCheckIfDoneAsync(currentSession);
+
+                if (productsDone)
+                {
+                    Console.WriteLine("Kuitti parsettu!");
+                    if (!_isLocal)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: $"Kuitti parsettu!");
+                    }
+                    return;
+                }
+
+                await AskNextProduct(update);
+                return;
+            }
+
+            var payers = await LinkProductWithPayersAndGetPayersAsync(update);
+
+            Console.WriteLine($"maksajat: {payers}");
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"Maksajat: {payers}");
+            }
+        }
+
+        public async Task<string> LinkProductWithPayersAndGetPayersAsync(Update update)
+        {
+            var currentUser = update.CallbackQuery.From.Id.ToString();
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+
+            var product = await _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession);
+
+            var payerToAdd = update.CallbackQuery.Data;
+            int payerId = await _receiptSessionRepository.GetPayerIdByNameAndSessionIdAsync(payerToAdd, currentSession);
+
+            // Link the payer with a product
+            await _receiptSessionRepository.AddPayerProductAsync(payerId, product.ProductId);
+
+            var payersForAProduct = await _receiptSessionRepository.GetPayersForProductBySessionAsync(product.ProductId, currentSession);
+
+            var payers = string.Join(", ", payersForAProduct.Select(payer => $"{payer.Name}"));
+
+            return payers;
+        }
+
+        public async Task AskNextProduct(Update update)
+        {
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
 
             var currentUser = message.From.Id.ToString();
             var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
 
             var product = _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession).Result;
 
-            bool productsDone = await _receiptSessionRepository.ProcessNextProductAndCheckIfDoneAsync(currentSession);
+            //if (product == null)
+            //{
+            //    Console.WriteLine("Kuitti parsettu!");
+            //    if (!_isLocal)
+            //    {
+            //        await _botClient.SendTextMessageAsync(
+            //        chatId: message.Chat.Id,
+            //        text: $"Kuitti parsettu!");
+            //    }
+            //    return;
+            //}
 
-            if (productsDone)
-            {
-                Console.WriteLine("Kuitti parsettu!");
-                return;
-            }
             var payers = await _receiptSessionRepository.GetPayerNamesBySessionIdAsync(currentSession);
 
             await SendInlineKeyboardAsync(message.Chat.Id, payers, product);
@@ -137,11 +215,17 @@ namespace KuittiBot.Functions.Services
             var inlineKeyboard = ReturnPayerInlineKeyboard(payers);
             var inlineKeyboardMarkup = new InlineKeyboardMarkup(inlineKeyboard);
 
-            await _botClient.SendTextMessageAsync(
+            Console.WriteLine($"Kuka maksaa:\n\n {product.Name} - {product.Cost}");
+
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: $"Kenen tämä tuote on:\n\n {product.Name} - {product.Cost}",
+                text: $"Kuka maksaa:\n\n {product.Name} - {product.Cost}",
                 replyMarkup: inlineKeyboardMarkup
-            );
+                );
+            }
+
         }
 
         public async Task AddSessionPayers(List<string> payers, string currentUser)
@@ -152,8 +236,8 @@ namespace KuittiBot.Functions.Services
 
         public async Task AskPayers(Update update)
         {
-            if (!(update.Message is { } message)) return;
-            
+            var message = CheckMessageValidity(update);
+
             if (!_isLocal)
             {
                 await _botClient.SendTextMessageAsync(
@@ -162,7 +246,6 @@ namespace KuittiBot.Functions.Services
             }
             Console.WriteLine("Anna kuitin maksajat:");
         }
-
 
         private async Task UploadFileAsync(Update update, Stream stream, SessionInfo currentSession)
         {
@@ -243,7 +326,7 @@ namespace KuittiBot.Functions.Services
         {
             _logger.LogInformation("Invoke telegram update function");
 
-            if (!(update.Message is { } message)) return;
+            var message = CheckMessageValidity(update);
 
             _logger.LogInformation("Received Message from {0}", message.Chat.Id);
             if (!_isLocal)
@@ -298,7 +381,8 @@ namespace KuittiBot.Functions.Services
 
         public async Task PrintReceiptToUser(Update update, Receipt receipt)
         {
-            if (!(update.Message is { } message)) return;
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
 
             List<string> receiptItems = receipt.Products.Select(x => $"{x.Name} - {x.Cost}").ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
@@ -333,8 +417,9 @@ namespace KuittiBot.Functions.Services
 
         public async Task DeleteAllData(Update update)
         {
-            if (!(update.Message is { } message)) return;
-            
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
+
             _receiptSessionRepository.DeleteAllDataAsync();
 
             if (!_isLocal)
@@ -356,8 +441,8 @@ namespace KuittiBot.Functions.Services
 
             }
 
-            if (!(update.Message is { } message))
-                return;
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
 
 
             //var userFromCache = await _userDataCache.GetUserByIdAsync(message.From.Id.ToString());
@@ -449,6 +534,7 @@ namespace KuittiBot.Functions.Services
             {
                 inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData(buttonText) });
             }
+            inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData("OK") });
 
             return inlineKeyboard.ToArray();
         }
@@ -464,6 +550,31 @@ namespace KuittiBot.Functions.Services
                 chatId: message.Chat.Id,
                 text: $"{fileNumber} training files were corrected",
                 parseMode: ParseMode.Html);
+        }
+
+
+        public Telegram.Bot.Types.Message CheckMessageValidity(Update update)
+        {
+            Telegram.Bot.Types.Message message = null;
+
+            if (update.Message != null)
+            {
+                message = update.Message;
+            }
+            else if (update.CallbackQuery != null)
+            {
+                message = update.CallbackQuery.Message;
+                message.From.Id = message.Chat.Id;
+                message.From.Username = message.Chat.Username;
+            }
+
+            return message;
+
+            if (message == null)
+            {
+                // No relevant message found in the update
+                return null;
+            }
         }
     }
 }

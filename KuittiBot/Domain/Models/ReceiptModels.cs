@@ -31,6 +31,7 @@ namespace KuittiBot.Functions.Domain.Models
 
     public class Payer
     {
+        public int Id { get; set; }
         public string Name { get; set; }
         public List<Product>? Products { get; set; }
         public decimal GetProductCost()
@@ -56,6 +57,7 @@ namespace KuittiBot.Functions.Domain.Models
     public class Product
     {
         public string Id { get; set; }
+        public int ProductId { get; set; }
         public string Name { get; set; }
         public decimal? DividedCost { get; set; }
         public List<decimal>? Discounts { get; set; }
