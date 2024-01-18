@@ -193,7 +193,7 @@ namespace KuittiBot.Functions.Infrastructure
 
             await connection.ExecuteAsync(updateQuery, new { SessionId = sessionId });
 
-            return productInfo.CurrentProduct == productInfo.ProductsInTotal +1; // Return true if CurrentProduct equals ProductsInTotal
+            return productInfo.CurrentProduct == productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
         }
 
         public async Task<bool> CheckIfProductAskedDoneAsync(int sessionId)
