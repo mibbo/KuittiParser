@@ -38,7 +38,7 @@ namespace KuittiBot.Functions.Services
             _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = HandlePayers });
             //_transitions.Add(new StateTransition { CurrentState = BotState.AskingParticipants, Event = BotEvent.ReceivedTextMessage, NextState = BotState.AllocatingItems, Action = StartItemAllocation });
             _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedCallbackQuery, NextState = BotState.AllocatingItems, Action = HandleItemAllocation });
-            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.Summary, Action = ShowSummary });
+            _transitions.Add(new StateTransition { CurrentState = BotState.AllocatingItems, Event = BotEvent.ReceivedTextMessage, NextState = BotState.WaitingForInput, Action = ShowSummary });
 
             _transitions.Add(new StateTransition { CurrentState = BotState.WaitingForInput, Event = BotEvent.ReceivedCommand, NextState = BotState.WaitingForInput, Action = UserCommand });
             _transitions.Add(new StateTransition { CurrentState = BotState.ReceivedReceipt, Event = BotEvent.ReceivedCommand, NextState = BotState.ReceivedReceipt, Action = UserCommand });
@@ -77,10 +77,8 @@ namespace KuittiBot.Functions.Services
             if (transition != null)
             {
 
-
                 await transition.Action(update);
-
-                if (botEvent != BotEvent.ReceivedCommand)
+                if(botEvent != BotEvent.ReceivedCommand)
                 {
                     user.CurrentState = transition.NextState;
                     //user.CurrentState = BotState.WaitingForInput;               // DISABLED -> TODO next transition

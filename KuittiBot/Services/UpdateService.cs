@@ -25,6 +25,7 @@ using Message = OpenAI.Chat.Message;
 using KuittiBot.Functions.Infrastructure;
 using OpenAI.Threads;
 using System.Runtime.CompilerServices;
+using System.Globalization;
 
 namespace KuittiBot.Functions.Services
 {
@@ -121,8 +122,6 @@ namespace KuittiBot.Functions.Services
 
             if (update.CallbackQuery.Data == "OK")
             {
-
-
                 Console.WriteLine("Selkee homma!");
                 if (!_isLocal)
                 {
@@ -138,13 +137,8 @@ namespace KuittiBot.Functions.Services
 
                 if (productsDone)
                 {
-                    Console.WriteLine("Kuitti parsettu!");
-                    if (!_isLocal)
-                    {
-                        await _botClient.SendTextMessageAsync(
-                        chatId: message.Chat.Id,
-                        text: $"Kuitti parsettu!");
-                    }
+                    await PrintDividedCosts(update);
+
                     return;
                 }
 
@@ -160,6 +154,56 @@ namespace KuittiBot.Functions.Services
                 await _botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"Maksajat: {payers}");
+            }
+            return;
+        }
+
+        public async Task PrintDividedCosts(Update update)
+        {
+            CultureInfo finnishCulture = new CultureInfo("fi-FI");
+            var message = CheckMessageValidity(update);
+
+            var currentUser = update.CallbackQuery.From.Id.ToString();
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+            List<Payer> payers = await _receiptSessionRepository.GetProductsForEachPayerAsync(currentSession);
+            await _receiptSessionRepository.CalculateCostsForEachPayerAsync(payers);
+
+
+            StringBuilder sb = new StringBuilder();
+
+            foreach (var payer in payers)
+            {
+                sb.AppendLine($"Payer: {payer.Name}");
+                decimal totalCostForPayer = 0;
+
+                foreach (var product in payer.Products)
+                {
+                    string costFormatted = product.DividedCost?.ToString("C2", finnishCulture) ?? "N/A";
+                    sb.AppendLine($"\tProduct: {product.Name}, Cost: {costFormatted}");
+                    totalCostForPayer += product.DividedCost ?? 0;
+                }
+
+                sb.AppendLine($"\tTotal Cost for {payer.Name}: {totalCostForPayer.ToString("C2", finnishCulture)}");
+                sb.AppendLine();
+            }
+
+            var endResult = sb.ToString();
+
+
+
+            Console.WriteLine(endResult);
+
+
+            Console.WriteLine("Kuitti parsettu!");
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: endResult);
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"Doodih soisniinku kuitti parsettu! Sanoppas jottai nii voidaa mennä etiäppäi");
             }
         }
 

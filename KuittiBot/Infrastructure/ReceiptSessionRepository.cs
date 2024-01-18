@@ -319,11 +319,98 @@ namespace KuittiBot.Functions.Infrastructure
             return payers.ToList();
         }
 
+        public async Task<List<Product>> GetProductsForPayerAsync(int payerId)
+        {
+            var query = @"
+                SELECT p.ProductId, p.Name, p.Cost, rp.DividedCost
+                FROM Products p
+                INNER JOIN PayerProducts pp ON p.ProductId = pp.ProductId
+                WHERE pp.PayerId = @PayerId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            return (await connection.QueryAsync<Product>(query, new { PayerId = payerId })).ToList();
+        }
+
+        public async Task<List<Payer>> GetProductsForEachPayerAsync(int sessionId)
+        {
+            var payerQuery = @"
+                SELECT p.PayerId, p.Name
+                FROM Payers p
+                WHERE p.SessionId = @SessionId;";
+
+            var productQuery = @"
+                SELECT pr.ProductId, pr.Name, pr.Cost, rp.DividedCost
+                FROM PayerProducts pp
+                JOIN Products pr ON pp.ProductId = pr.ProductId
+                JOIN ReceiptProducts rp ON pr.ProductId = rp.ProductId
+                WHERE pp.PayerId = @PayerId AND rp.SessionId = @SessionId;"; 
 
 
+            using var connection = new SqlConnection(_connectionString);
+            var payers = (await connection.QueryAsync<Payer>(payerQuery, new { SessionId = sessionId })).ToList();
 
+            try
+            {
 
+                foreach (var payer in payers)
+                {
+                    var products = (await connection.QueryAsync<Product>(productQuery, new { PayerId = payer.PayerId, SessionId = sessionId })).ToList();
+                    payer.Products = products;
+                }
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Inserting into session table failed: " + e.Message, e);
+            }
 
+            return payers;
+        }
+
+        public async Task<Dictionary<int, decimal>> GetCostsForPayerAsync(int payerId)
+        {
+            var query = @"
+                SELECT p.ProductId, rp.DividedCost
+                FROM Products p
+                INNER JOIN PayerProducts pp ON p.ProductId = pp.ProductId
+                INNER JOIN ReceiptProducts rp ON p.ProductId = rp.ProductId
+                WHERE pp.PayerId = @PayerId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            var payerProducts = await connection.QueryAsync(query, new { PayerId = payerId });
+
+            // Calculate the total cost for each product
+            var payerCosts = new Dictionary<int, decimal>();
+            foreach (var product in payerProducts)
+            {
+                if (!payerCosts.ContainsKey(product.ProductId))
+                    payerCosts[product.ProductId] = 0;
+                payerCosts[product.ProductId] += product.DividedCost;
+            }
+
+            return payerCosts;
+        }
+
+        public async Task CalculateCostsForEachPayerAsync(List<Payer> payers)
+        {
+            var payerCountQuery = @"
+                SELECT COUNT(*) 
+                FROM PayerProducts 
+                WHERE ProductId = @ProductId;";
+
+            using var connection = new SqlConnection(_connectionString);
+
+            foreach (var payer in payers)
+            {
+                foreach (var product in payer.Products)
+                {
+                    var payerCount = await connection.ExecuteScalarAsync<int>(payerCountQuery, new { ProductId = product.ProductId });
+                    var totalCost = product.Cost + (product.Discounts?.Sum() ?? 0);
+                    var dividedCost = totalCost / payerCount;
+
+                    product.DividedCost = dividedCost;
+                }
+            }
+        }
 
 
 

@@ -2,6 +2,7 @@
 using KuittiBot.Functions.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,6 +25,10 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task AddPayerProductAsync(int payerId, int productId);
         Task<int> GetPayerIdByNameAndSessionIdAsync(string name, int sessionId);
         Task<List<Payer>> GetPayersForProductBySessionAsync(int productId, int sessionId);
+        Task<List<Product>> GetProductsForPayerAsync(int payerId);
+        Task<List<Payer>> GetProductsForEachPayerAsync(int sessionId);
+        Task<Dictionary<int, decimal>> GetCostsForPayerAsync(int payerId);
+        Task CalculateCostsForEachPayerAsync(List<Payer> payers);
         Task DeleteAllDataAsync();
     }
 }
