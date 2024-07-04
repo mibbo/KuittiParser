@@ -13,7 +13,8 @@ namespace DatabaseReleaseAutomation.DbUpDemo
             var currentDirectory = Directory.GetCurrentDirectory();
             while (!currentDirectory.EndsWith("DatabaseReleaseAutomation"))
             {
-                currentDirectory = Directory.GetParent(currentDirectory).FullName;
+                //currentDirectory = Directory.GetParent(currentDirectory).FullName;
+                currentDirectory = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.FullName;
             }
             return currentDirectory;
         }
@@ -21,8 +22,9 @@ namespace DatabaseReleaseAutomation.DbUpDemo
         static int Main(string[] args)
         {
             // Use the method to find the project root directory
+            //var projectRoot = GetProjectRootDirectory() + @"\Scripts";
             var projectRoot = GetProjectRootDirectory();
-            var dir = Directory.GetCurrentDirectory();
+            //var dir = Directory.GetCurrentDirectory();
 
             // Loads connection string settings from appsettings.json, environment variables and command line
             var configuration = new ConfigurationBuilder()
@@ -34,7 +36,8 @@ namespace DatabaseReleaseAutomation.DbUpDemo
 
 
             // Sets the connection string value from the command line or loaded from app settings
-            var connectionString = args.FirstOrDefault() ?? configuration.GetConnectionString("DbUpSqlConnectionString");
+            var connectionString = "Server=tcp:kuittibot-server.database.windows.net,1433;Initial Catalog=kuittibot-sql-db;Persist Security Info=False;User ID=kuittibot_admin;Password=F4?'YK#Sy$58_7c;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"; //args.FirstOrDefault() ?? configuration.GetConnectionString("DbUpSqlConnectionString");
+            //var connectionString = "Server=tcp:kuittibot-server.database.windows.net;Database=kuittibot-sql-db;User Id=kuittibot_admin;Password=F4?'YK#Sy`$58_7c"; //args.FirstOrDefault() ?? configuration.GetConnectionString("DbUpSqlConnectionString");
 
             // Creates the database if it doesn't already exist
             EnsureDatabase.For.SqlDatabase(connectionString);

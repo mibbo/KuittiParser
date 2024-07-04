@@ -1,31 +1,16 @@
-using Azure.Storage.Blobs;
 using KuittiBot.Functions.Domain.Abstractions;
 using KuittiBot.Functions.Domain.Models;
-using Microsoft.Azure.Documents;
+using KuittiBot.Functions.Infrastructure;
 using Microsoft.Azure.Documents.SystemFunctions;
 using Microsoft.Extensions.Logging;
-using System.Threading;
-using System.Threading.Tasks;
+using OpenAI;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.ReplyMarkups;
-using KuittiBot.Functions.Services;
 using Telegram.Bot.Types.Enums;
-using System.Web;
-using Microsoft.AspNetCore.Http;
-using System.Net;
-using System.IO;
-using System.Text;
-using System.Security.Cryptography;
-using OpenAI;
-using Azure;
-using OpenAI.Chat;
-using OpenAI.Models;
-using Message = OpenAI.Chat.Message;
-using KuittiBot.Functions.Infrastructure;
-using OpenAI.Threads;
-using System.Runtime.CompilerServices;
-using System.Globalization;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace KuittiBot.Functions.Services
 {
@@ -41,7 +26,7 @@ namespace KuittiBot.Functions.Services
         private IReceiptSessionRepository _receiptSessionRepository;
 
         private static bool _isLocal = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
-        private static string _testikuitti = "testikuitti_kmarket.pdf";
+        private static string _testikuitti = Environment.GetEnvironmentVariable("TestReceipt"); //"testikuitti_kmarket.pdf";
         private string _fileName = "";
 
         public UpdateService(ITelegramBotClient botClient, ILogger<UpdateService> logger,/* IUserDataCache userDataCache, */IUserDataRepository userDataRepository, IReceiptSessionCache receiptSessionCache, IReceiptSessionRepository receiptSessionRepository, IReceiptParsingService receiptParsingService)
@@ -77,7 +62,7 @@ namespace KuittiBot.Functions.Services
             };
             _fileName = userInfoToUpload.FileName;
 
-            await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
+            //await _receiptSessionCache.InsertSessionIfNotExistAsync(userInfoToUpload);
 
             var sessionId = await _receiptSessionRepository.InitializeSession(currentSession);
 
@@ -88,7 +73,7 @@ namespace KuittiBot.Functions.Services
             receipt.SessionSuccessful = false;
 
             // TODO remove
-            await _receiptSessionCache.UpdateSessionSuccessState(currentSession.Hash, true);
+            //await _receiptSessionCache.UpdateSessionSuccessState(currentSession.Hash, true);
             //
 
             currentSession.SessionSuccessful = true;
@@ -107,12 +92,86 @@ namespace KuittiBot.Functions.Services
             var message = CheckMessageValidity(update);
             //if (!(update.Message is { } message)) return;
             var payersRaw = message.Text;
-            List<string> payers = payersRaw.Split(" ").ToList();
             var currentUser = message.From.Id.ToString();
+            var sessionId = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
 
-            await AddSessionPayers(payers, currentUser);
+            bool groupMode = await _receiptSessionRepository.IsGroupModeEnabledAsync(sessionId);
+
+            if (payersRaw.Contains(':'))
+            {
+                groupMode = true;
+                await _receiptSessionRepository.SetGroupModeForCurrentSession(sessionId, true);
+            }
+
+            if (groupMode)
+            {
+                // Atoli: tommi allu liisa, liha: maukka ville, kasvis: emma jasu
+
+                var groups = ParseGroups(payersRaw);
+
+                foreach (var group in groups)
+                {
+                    await AddSessionPayers(group.Value, currentUser);
+
+
+                    // Just for debugging
+                    Console.WriteLine($"Group: {group.Key}");
+                    foreach (var member in group.Value)
+                    {
+                        Console.WriteLine($"  Member: {member}");
+                    }
+                }
+
+
+                await AddSessionGroups(groups, currentUser);
+            }
+            else
+            {
+                List<string> payers = payersRaw.Split(" ").ToList();
+
+                await AddSessionPayers(payers, currentUser);
+            }
 
             await AskNextProduct(update);
+        }
+
+        public Dictionary<string, List<string>> ParseGroups(string payersRaw)
+        {
+            Dictionary<string, List<string>> groups = new Dictionary<string, List<string>>();
+
+            payersRaw = "Atoli: tommi allu liisa, liha: maukka ville, kasvis: emma jasu";
+
+            if (!payersRaw.Contains(':') || !payersRaw.Contains(','))
+            {
+                throw new Exception("Wrong payer/group format. For payers: 'tommi maukka pena'. For groups: 'liha: maukka ville, kasvis: emma jasu'.");
+            }
+
+            var fullGroups = payersRaw.Split(',').ToList();
+            
+            foreach (var group in fullGroups)
+            {
+                var groupData = group.Split(':');
+
+                if (groupData.Length != 2)
+                {
+                    throw new Exception($"Malformed group entry: {group}");
+                }
+
+                var groupName = groupData[0].Trim();
+                var groupMembers = groupData[1].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+                groups.Add(groupName, groupMembers);
+                //if (groups.ContainsKey(groupName))
+                //{
+                //    groups[groupName].AddRange(groupMembers);
+                //}
+                //else
+                //{
+                //    groups[groupName] = groupMembers;
+                //}
+            }
+
+            return groups;
         }
 
         public async Task HandleProductButtons(Update update)
@@ -146,7 +205,7 @@ namespace KuittiBot.Functions.Services
                 return;
             }
 
-            var payers = await LinkProductWithPayersAndGetPayersAsync(update);
+            var payers = await LinkProductWithPayersAndGetCurrentProductPayersAsync(update);
 
             Console.WriteLine($"maksajat: {payers}");
             if (!_isLocal)
@@ -156,6 +215,95 @@ namespace KuittiBot.Functions.Services
                 text: $"Maksajat: {payers}");
             }
             return;
+        }
+
+
+        // Gets the payer button output which can be:
+        // 1. Single payer name
+        // 2. Group payers
+        // 3. All payers ("Kaikki")
+        // and links payers to a product accordingly
+        public async Task<string> LinkProductWithPayersAndGetCurrentProductPayersAsync(Update update)
+        {
+            var currentUser = update.CallbackQuery.From.Id.ToString();
+            var sessionId = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+
+            var product = await _receiptSessionRepository.GetNextProductBySessionIdAsync(sessionId);
+
+            var userPayerInput = update.CallbackQuery.Data;
+
+            var payerIds = await DetermineAndReturnCorrectPayers(userPayerInput, sessionId);
+
+            await LinkPayersWithProduct(payerIds, product.ProductId);
+
+            var payersForAProduct = await _receiptSessionRepository.GetPayersForProductBySessionAsync(product.ProductId, sessionId);
+
+            var payers = string.Join(", ", payersForAProduct.Select(payer => $"{payer.Name}"));
+
+            return payers;
+        }
+
+        private async Task<List<int>> DetermineAndReturnCorrectPayers(string userPayerInput, int sessionId)
+        {
+            // Determine whether to add all payers, a single payer, or all group members if group mode is enabled
+            List<int> payerIds;
+
+            if (userPayerInput == "§")
+            {
+                var isGroupModeEnabled = await _receiptSessionRepository.IsGroupModeEnabledAsync(sessionId);
+
+                if (isGroupModeEnabled)
+                {
+                    await _receiptSessionRepository.SetGroupModeForCurrentSession(sessionId, false);
+                }
+                else
+                {
+                    await _receiptSessionRepository.SetGroupModeForCurrentSession(sessionId, true);
+                }
+            }
+
+            // Check if "Kaikki" is pressed to add all payers
+            if (userPayerInput == "Kaikki")
+            {
+                payerIds = await _receiptSessionRepository.GetAllPayerIdsBySessionIdAsync(sessionId);
+            }
+            else
+            {
+                var isGroupModeEnabled = await _receiptSessionRepository.IsGroupModeEnabledAsync(sessionId);
+
+                if (isGroupModeEnabled)
+                {
+                    // If group mode is enabled, get all group members
+                    payerIds = await _receiptSessionRepository.GetGroupMembersByGroupNameAndSessionIdAsync(userPayerInput, sessionId);
+                }
+                else
+                {
+                    // Otherwise, add the single specified payer
+                    payerIds = new List<int> { await _receiptSessionRepository.GetPayerIdByNameAndSessionIdAsync(userPayerInput, sessionId) };
+                }
+            }
+
+            return payerIds;
+        }
+
+        private async Task LinkPayersWithProduct(IEnumerable<int> payerIds, int productId)
+        {
+            foreach (var payerId in payerIds)
+            {
+                // Check if the payer is already linked to the product
+                var isLinked = await _receiptSessionRepository.IsPayerLinkedToProductAsync(payerId, productId);
+
+                if (isLinked)
+                {
+                    // Unlink the payer from the product
+                    await _receiptSessionRepository.RemovePayerFromProductAsync(payerId, productId);
+                }
+                else
+                {
+                    // Link the payer with the product
+                    await _receiptSessionRepository.AddPayerToProductAsync(payerId, productId);
+                }
+            }
         }
 
         public async Task PrintDividedCosts(Update update)
@@ -168,6 +316,11 @@ namespace KuittiBot.Functions.Services
             List<Payer> payers = await _receiptSessionRepository.GetProductsForEachPayerAsync(currentSession);
             await _receiptSessionRepository.CalculateCostsForEachPayerAsync(payers);
 
+            // Calculate the overall total cost
+            // TODO: Hae totalcost kuitin total costista?
+            decimal overallTotalCost = payers
+                .SelectMany(p => p.Products)
+                .Sum(product => product.DividedCost ?? 0);
 
             StringBuilder sb = new StringBuilder();
 
@@ -176,18 +329,23 @@ namespace KuittiBot.Functions.Services
                 sb.AppendLine($"Payer: {payer.Name}");
                 decimal totalCostForPayer = 0;
 
+                // TODO: Tee verbose asetus käyttäjäkohtaisesti
                 foreach (var product in payer.Products)
                 {
                     string costFormatted = product.DividedCost?.ToString("C2", finnishCulture) ?? "N/A";
-                    sb.AppendLine($"\tProduct: {product.Name}, Cost: {costFormatted}");
+                    //sb.AppendLine($"\tProduct: {product.Name}, Cost: {costFormatted}");
                     totalCostForPayer += product.DividedCost ?? 0;
                 }
 
-                sb.AppendLine($"\tTotal Cost for {payer.Name}: {totalCostForPayer.ToString("C2", finnishCulture)}");
+                // Calculate the percentage of the total cost for this payer
+                decimal percentageOfTotal = (overallTotalCost > 0) ? (totalCostForPayer / overallTotalCost) * 100 : 0;
+
+                sb.AppendLine($"\tTotal Cost for {payer.Name}: {totalCostForPayer.ToString("C2", finnishCulture)} ({percentageOfTotal:F2}%)");
                 sb.AppendLine();
             }
 
             var endResult = sb.ToString();
+
 
 
 
@@ -197,9 +355,17 @@ namespace KuittiBot.Functions.Services
             Console.WriteLine("Kuitti parsettu!");
             if (!_isLocal)
             {
-                await _botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: endResult);
+                var endResultChunks = endResult
+                    .Chunk(4096)
+                    .Select(x => new string(x))
+                    .ToList();
+
+                foreach (var chunk in endResultChunks)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: chunk);
+                }
 
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -207,25 +373,6 @@ namespace KuittiBot.Functions.Services
             }
         }
 
-        public async Task<string> LinkProductWithPayersAndGetPayersAsync(Update update)
-        {
-            var currentUser = update.CallbackQuery.From.Id.ToString();
-            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
-
-            var product = await _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession);
-
-            var payerToAdd = update.CallbackQuery.Data;
-            int payerId = await _receiptSessionRepository.GetPayerIdByNameAndSessionIdAsync(payerToAdd, currentSession);
-
-            // Link the payer with a product
-            await _receiptSessionRepository.AddPayerProductAsync(payerId, product.ProductId);
-
-            var payersForAProduct = await _receiptSessionRepository.GetPayersForProductBySessionAsync(product.ProductId, currentSession);
-
-            var payers = string.Join(", ", payersForAProduct.Select(payer => $"{payer.Name}"));
-
-            return payers;
-        }
 
         public async Task AskNextProduct(Update update)
         {
@@ -249,9 +396,21 @@ namespace KuittiBot.Functions.Services
             //    return;
             //}
 
-            var payers = await _receiptSessionRepository.GetPayerNamesBySessionIdAsync(currentSession);
+            var isGroupModeEnabled = await _receiptSessionRepository.IsGroupModeEnabledAsync(currentSession);
 
-            await SendInlineKeyboardAsync(message.Chat.Id, payers, product);
+            var buttons = new List<string>();
+
+            if (isGroupModeEnabled)
+            {
+                buttons = await _receiptSessionRepository.GetGroupNamesBySessionIdAsync(currentSession);
+            }
+            else
+            {
+                buttons = await _receiptSessionRepository.GetPayerNamesBySessionIdAsync(currentSession);
+            }
+
+
+            await SendInlineKeyboardAsync(message.Chat.Id, buttons, product);
         }
 
         public async Task SendInlineKeyboardAsync(ChatId chatId, List<string> payers, Product product)
@@ -275,7 +434,14 @@ namespace KuittiBot.Functions.Services
         public async Task AddSessionPayers(List<string> payers, string currentUser)
         {
             var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
-            await _receiptSessionRepository.SetSessionPayers(payers, currentSession, currentUser);
+            await _receiptSessionRepository.SetSessionPayers(payers, currentSession);
+        }
+
+        public async Task AddSessionGroups(Dictionary<string, List<string>> groups, string currentUser)
+        {
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+
+            await _receiptSessionRepository.SetSessionGroups(groups, currentSession);
         }
 
         public async Task AskPayers(Update update)
@@ -305,12 +471,12 @@ namespace KuittiBot.Functions.Services
 
             SessionInfo newSession = new SessionInfo()
             {
-                SessionId = Guid.NewGuid().ToString(),
                 UserId = message.From.Id.ToString(),
                 DocumentType = documentType,
                 Hash = hash,
                 FileName = hash + (documentType == "application/jpg" ? ".jpg" : ".pdf"),
-                SessionSuccessful = false
+                SessionSuccessful = false,
+                GroupMode = false
             };
 
             return newSession;
@@ -550,35 +716,45 @@ namespace KuittiBot.Functions.Services
             }
         }
 
-
-        public static InlineKeyboardMarkup CreateButton()
-        {
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-{
-                        new [] // first row
-                        {
-                            InlineKeyboardButton.WithCallbackData("1.1"),
-                            InlineKeyboardButton.WithCallbackData("1.2"),
-                        },
-                        new [] // second row
-                        {
-                            InlineKeyboardButton.WithCallbackData("2.1"),
-                            InlineKeyboardButton.WithCallbackData("2.2"),
-                        }
-                    });
-
-            return inlineKeyboard;
-        }
-
         static InlineKeyboardButton[][] ReturnPayerInlineKeyboard(List<string> payers)
         {
             var inlineKeyboard = new List<InlineKeyboardButton[]>();
 
-            foreach (var buttonText in payers)
+            if (payers.Count > 5)
             {
-                inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData(buttonText) });
+                for (int i = 0; i < payers.Count; i += 2)
+                {
+                    if (i + 1 < payers.Count)
+                    {
+                        inlineKeyboard.Add(new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData(payers[i]),
+                            InlineKeyboardButton.WithCallbackData(payers[i + 1])
+                        });
+                    }
+                    else
+                    {
+                        inlineKeyboard.Add(new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData(payers[i])
+                        });
+                    }
+                }
             }
-            inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData("OK") });
+            else
+            {
+                foreach (var buttonText in payers)
+                {
+                    inlineKeyboard.Add(new[] { InlineKeyboardButton.WithCallbackData(buttonText) });
+                }
+            }
+
+            inlineKeyboard.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData("OK"),
+                InlineKeyboardButton.WithCallbackData("Kaikki"),
+                InlineKeyboardButton.WithCallbackData("§")
+            });
 
             return inlineKeyboard.ToArray();
         }

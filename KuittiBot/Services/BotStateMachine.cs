@@ -132,7 +132,7 @@ namespace KuittiBot.Functions.Services
         private async Task UserCommand(Update update)
         {
 
-            // Implement logic to handle receipt
+            // logic to handle receipt
             if (_isNewUser)
             {
                 await _updateService.WelcomeUser(update);

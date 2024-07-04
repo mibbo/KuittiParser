@@ -21,7 +21,6 @@ using Telegram.Bot.Types.Enums;
 
 namespace KuittiBot.Functions
 {
-
     public class KuittiBotFunction
     {
         private readonly UpdateService _updateService;

@@ -38,14 +38,17 @@ namespace KuittiBot.Functions.Infrastructure
 
                 if (!sessionExists)
                 {
-                    string insertQuery = "INSERT INTO Receipts (Hash, FileName, SessionSuccessful) VALUES (@Hash, @FileName, @SessionSuccessful); SELECT CAST(SCOPE_IDENTITY() as int);";
+                    string insertQuery = @"
+                        INSERT INTO Receipts (Hash, FileName, SessionSuccessful, GroupMode) 
+                        VALUES (@Hash, @FileName, @SessionSuccessful, @GroupMode); 
+                        SELECT CAST(SCOPE_IDENTITY() as int);";
                     var sessionId = await connection.ExecuteScalarAsync<int>(insertQuery, session);
                     return sessionId;
                 }
                 else
                 {
                     Console.WriteLine($"The same hash for the Session file '{session.FileName}' already exists in the storage with filename '{session.FileName}'");
-                    return -1; 
+                    return -1;
                 }
             }
             catch (Exception e)
@@ -53,6 +56,44 @@ namespace KuittiBot.Functions.Infrastructure
                 throw new Exception("Inserting into session table failed: " + e.Message, e);
             }
         }
+
+        public async Task SetGroupModeForCurrentSession(int sessionId, bool groupMode)
+        {
+            try
+            {
+                using var connection = new SqlConnection(_connectionString);
+
+                string query = "UPDATE Receipts SET GroupMode = @GroupMode WHERE SessionId = @SessionId";
+
+                await connection.ExecuteAsync(query, new { GroupMode = groupMode, SessionId = sessionId });
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Error in setting group mode for current session: " + e.Message, e);
+            }
+        }
+
+        public async Task<bool> IsGroupModeEnabledAsync(int sessionId)
+        {
+            try
+            {
+                using var connection = new SqlConnection(_connectionString);
+
+                var query = @"
+                            SELECT GroupMode 
+                            FROM Receipts 
+                            WHERE SessionId = @SessionId;";
+
+                var groupMode = await connection.QuerySingleOrDefaultAsync<bool>(query, new { SessionId = sessionId });
+
+                return groupMode;
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Fetching GroupMode from Receipts table failed: " + e.Message, e);
+            }
+        }
+
 
         public async Task InsertSessionIfNotExistAsync(SessionInfo session)
         {
@@ -79,7 +120,7 @@ namespace KuittiBot.Functions.Infrastructure
             }
         }
 
-        public async Task SetSessionPayers(List<string> payers, int sessionId, string userId)
+        public async Task SetSessionPayers(List<string> payers, int sessionId)
         {
             try
             {
@@ -99,6 +140,86 @@ namespace KuittiBot.Functions.Infrastructure
                 throw new Exception("Error in setting session payers: " + e.Message, e);
             }
         }
+
+        public async Task SetSessionGroups(Dictionary<string, List<string>> groups, int sessionId)
+        {
+            try
+            {
+                using var connection = new SqlConnection(_connectionString);
+                await connection.OpenAsync();
+                using var transaction = connection.BeginTransaction();
+
+                foreach (var group in groups)
+                {
+                    // Insert the group into the Groups table and get the GroupId
+                    string insertGroupQuery = @"
+                            INSERT INTO Groups (SessionId, GroupName) 
+                            VALUES (@SessionId, @GroupName); 
+                            SELECT CAST(SCOPE_IDENTITY() as int);";
+                    var groupId = await connection.ExecuteScalarAsync<int>(
+                        insertGroupQuery,
+                        new { SessionId = sessionId, GroupName = group.Key },
+                        transaction
+                    );
+
+                    // Insert the members into the GroupPayers table
+                    string insertMemberQuery = "INSERT INTO GroupPayers (GroupId, PayerId) VALUES (@GroupId, @PayerId);";
+
+                    foreach (var member in group.Value)
+                    {
+                        var payerId = await GetPayerIdByNameAndSessionIdAsync(connection, member, sessionId, transaction);
+                        if (payerId.HasValue)
+                        {
+                            await connection.ExecuteAsync(
+                                insertMemberQuery,
+                                new { GroupId = groupId, PayerId = payerId.Value },
+                                transaction
+                            );
+                        }
+                    }
+                }
+
+                transaction.Commit();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error in setting session groups.");
+                throw new Exception("Error in setting session groups: " + e.Message, e);
+            }
+        }
+        private async Task<int?> GetPayerIdByNameAndSessionIdAsync(SqlConnection connection, string payerName, int sessionId, SqlTransaction transaction)
+        {
+            string query = @"
+                SELECT PayerId 
+                FROM Payers 
+                WHERE Name = @Name AND SessionId = @SessionId;";
+
+            return await connection.QuerySingleOrDefaultAsync<int?>(
+                query,
+                new { Name = payerName, SessionId = sessionId },
+                transaction
+            );
+        }
+
+        //public async Task SetSessionGroups(List<string> groups, int sessionId)
+        //{
+        //    try
+        //    {
+        //        foreach (var group in groups)
+        //        {
+        //            string insertPayerQuery = "INSERT INTO Groups (SessionId, GroupName) VALUES (@SessionId, @GroupName); SELECT CAST(SCOPE_IDENTITY() as int);";
+
+        //            using var connection = new SqlConnection(_connectionString);
+
+        //            // Insert into Groups table and get the GroupId
+        //            var payerId = await connection.ExecuteScalarAsync<int>(insertPayerQuery, new { SessionId = sessionId, Name = group });
+        //        }
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        throw new Exception("Error in setting session payers: " + e.Message, e);
+        //    }
+        //}
 
         //TODO: merge Receipt and ReceiptSessionEntity
         public async Task SaveReceiptAsync(Receipt receipt/*, ReceiptSessionEntity session*/)
@@ -193,7 +314,7 @@ namespace KuittiBot.Functions.Infrastructure
 
             await connection.ExecuteAsync(updateQuery, new { SessionId = sessionId });
 
-            return productInfo.CurrentProduct == productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
+            return productInfo.CurrentProduct >= productInfo.ProductsInTotal; // Return true if CurrentProduct equals ProductsInTotal
         }
 
         public async Task<bool> CheckIfProductAskedDoneAsync(int sessionId)
@@ -269,9 +390,56 @@ namespace KuittiBot.Functions.Infrastructure
             return payerNames.ToList();
         }
 
-        public async Task AddPayerProductAsync(int payerId, int productId)
+        public async Task<List<string>> GetGroupNamesBySessionIdAsync(int sessionId)
+        {
+            var query = @"
+                SELECT GroupName 
+                FROM Groups
+                WHERE SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            var payerNames = await connection.QueryAsync<string>(query, new { SessionId = sessionId });
+
+            return payerNames.ToList();
+        }
+
+        public async Task<List<int>> GetGroupMembersByGroupNameAndSessionIdAsync(string groupName, int sessionId)
+        {
+            var query = @"
+                SELECT p.PayerId
+                FROM Payers p
+                INNER JOIN GroupPayers gp ON p.PayerId = gp.PayerId
+                INNER JOIN Groups g ON gp.GroupId = g.GroupId
+                WHERE g.SessionId = @SessionId AND g.GroupName = @GroupName;
+            ";
+
+            using var connection = new SqlConnection(_connectionString);
+            var groupMembers = await connection.QueryAsync<int>(query, new { SessionId = sessionId, GroupName = groupName });
+
+            return groupMembers.ToList();
+        }
+
+        public async Task<bool> IsPayerLinkedToProductAsync(int payerId, int productId)
+        {
+            var query = "SELECT COUNT(1) FROM PayerProducts WHERE PayerId = @PayerId AND ProductId = @ProductId;";
+
+            using var connection = new SqlConnection(_connectionString);
+            return await connection.ExecuteScalarAsync<bool>(query, new { PayerId = payerId, ProductId = productId });
+        }
+
+
+
+        public async Task AddPayerToProductAsync(int payerId, int productId)
         {
             var query = "INSERT INTO PayerProducts (PayerId, ProductId) VALUES (@PayerId, @ProductId);";
+
+            using var connection = new SqlConnection(_connectionString);
+            await connection.ExecuteAsync(query, new { PayerId = payerId, ProductId = productId });
+        }
+
+        public async Task RemovePayerFromProductAsync(int payerId, int productId)
+        {
+            var query = "DELETE FROM PayerProducts WHERE PayerId = @PayerId AND ProductId = @ProductId;";
 
             using var connection = new SqlConnection(_connectionString);
             await connection.ExecuteAsync(query, new { PayerId = payerId, ProductId = productId });
@@ -298,6 +466,20 @@ namespace KuittiBot.Functions.Infrastructure
 
             using var connection = new SqlConnection(_connectionString);
             return await connection.QuerySingleOrDefaultAsync<int>(query, new { Name = name, SessionId = sessionId });
+        }
+
+        public async Task<List<int>> GetAllPayerIdsBySessionIdAsync(int sessionId)
+        {
+            var query = @"
+                SELECT PayerId
+                FROM Payers
+                WHERE SessionId = @SessionId;";
+
+            using var connection = new SqlConnection(_connectionString);
+
+            var result = await connection.QueryAsync<int>(query, new { SessionId = sessionId });
+
+            return result.ToList();
         }
 
         public async Task<List<Payer>> GetPayersForProductBySessionAsync(int productId, int sessionId)
@@ -392,23 +574,31 @@ namespace KuittiBot.Functions.Infrastructure
 
         public async Task CalculateCostsForEachPayerAsync(List<Payer> payers)
         {
-            var payerCountQuery = @"
+
+            try
+            {
+                var payerCountQuery = @"
                 SELECT COUNT(*) 
                 FROM PayerProducts 
                 WHERE ProductId = @ProductId;";
 
-            using var connection = new SqlConnection(_connectionString);
+                using var connection = new SqlConnection(_connectionString);
 
-            foreach (var payer in payers)
-            {
-                foreach (var product in payer.Products)
+                foreach (var payer in payers)
                 {
-                    var payerCount = await connection.ExecuteScalarAsync<int>(payerCountQuery, new { ProductId = product.ProductId });
-                    var totalCost = product.Cost + (product.Discounts?.Sum() ?? 0);
-                    var dividedCost = totalCost / payerCount;
+                    foreach (var product in payer.Products)
+                    {
+                        var payerCount = await connection.ExecuteScalarAsync<int>(payerCountQuery, new { ProductId = product.ProductId });
+                        var totalCost = product.Cost + (product.Discounts?.Sum() ?? 0);
+                        var dividedCost = totalCost / payerCount;
 
-                    product.DividedCost = dividedCost;
+                        product.DividedCost = dividedCost;
+                    }
                 }
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Calculating costs failed: " + e.Message, e);
             }
         }
 
@@ -426,12 +616,14 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 // Delete data from tables in reverse order of dependency
+                await connection.ExecuteAsync("DELETE FROM GroupPayers;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM PayerProducts;", transaction: transaction);
                 //await connection.ExecuteAsync("DELETE FROM PayerReceipts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM ReceiptProducts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM ProductDiscounts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Products;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Payers;", transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Groups;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Users;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Receipts;", transaction: transaction);
 
