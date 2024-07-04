@@ -232,7 +232,7 @@ namespace KuittiBot.Functions.Services
 
             var userPayerInput = update.CallbackQuery.Data;
 
-            var payerIds = await DetermineAndReturnCorrectPayers(userPayerInput, sessionId);
+            var payerIds = await DetermineAndReturnCorrectPayers(update, userPayerInput, sessionId);
 
             await LinkPayersWithProduct(payerIds, product.ProductId);
 
@@ -243,7 +243,7 @@ namespace KuittiBot.Functions.Services
             return payers;
         }
 
-        private async Task<List<int>> DetermineAndReturnCorrectPayers(string userPayerInput, int sessionId)
+        private async Task<List<int>> DetermineAndReturnCorrectPayers(Update update, string userPayerInput, int sessionId)
         {
             // Determine whether to add all payers, a single payer, or all group members if group mode is enabled
             List<int> payerIds;
@@ -260,6 +260,9 @@ namespace KuittiBot.Functions.Services
                 {
                     await _receiptSessionRepository.SetGroupModeForCurrentSession(sessionId, true);
                 }
+
+                await SwitchButtonView(update);
+                return new List<int>();
             }
 
             // Check if "Kaikki" is pressed to add all payers
@@ -284,6 +287,33 @@ namespace KuittiBot.Functions.Services
             }
 
             return payerIds;
+        }
+
+
+        public async Task SwitchButtonView(Update update)
+        {
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
+
+            var currentUser = message.From.Id.ToString();
+            var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
+
+            var isGroupModeEnabled = await _receiptSessionRepository.IsGroupModeEnabledAsync(currentSession);
+
+            var buttons = new List<string>();
+
+            if (isGroupModeEnabled)
+            {
+                buttons = await _receiptSessionRepository.GetGroupNamesBySessionIdAsync(currentSession);
+            }
+            else
+            {
+                buttons = await _receiptSessionRepository.GetPayerNamesBySessionIdAsync(currentSession);
+            }
+
+            var product = _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession).Result;
+
+            await SendInlineKeyboardAsync(message.Chat.Id, buttons, product);
         }
 
         private async Task LinkPayersWithProduct(IEnumerable<int> payerIds, int productId)
@@ -382,6 +412,7 @@ namespace KuittiBot.Functions.Services
             var currentUser = message.From.Id.ToString();
             var currentSession = _userDataRepository.GetCurrentSessionByIdAsync(currentUser).Result;
 
+            //var product = _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession).Result;
             var product = _receiptSessionRepository.GetNextProductBySessionIdAsync(currentSession).Result;
 
             //if (product == null)

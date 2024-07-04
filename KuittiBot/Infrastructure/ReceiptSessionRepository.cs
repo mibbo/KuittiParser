@@ -279,6 +279,30 @@ namespace KuittiBot.Functions.Infrastructure
 
 
 
+        //public async Task<Product> GetNextProductBySessionIdAsync(int sessionId)
+        //{
+        //    using var connection = new SqlConnection(_connectionString);
+
+        //    var productNumberQuery = @"SELECT CurrentProduct FROM Receipts WHERE SessionId = @SessionId;";
+        //    var nextProductNumber = await connection.QuerySingleOrDefaultAsync<int>(productNumberQuery, new
+        //    {
+        //        SessionId = sessionId
+        //    });
+
+        //    var query = @"
+        //        SELECT p.ProductId, p.Name, p.Cost, rp.DividedCost
+        //        FROM Products p
+        //        JOIN ReceiptProducts rp ON p.ProductId = rp.ProductId
+        //        WHERE p.ProductNumber = @ProductNumber AND rp.SessionId = @SessionId;";
+
+        //    var product = await connection.QuerySingleOrDefaultAsync<Product>(query, new
+        //    {
+        //        ProductNumber = nextProductNumber-1,
+        //        SessionId = sessionId
+        //    });
+
+        //    return product;
+        //}
         public async Task<Product> GetNextProductBySessionIdAsync(int sessionId)
         {
             using var connection = new SqlConnection(_connectionString);
@@ -297,7 +321,7 @@ namespace KuittiBot.Functions.Infrastructure
 
             var product = await connection.QuerySingleOrDefaultAsync<Product>(query, new
             {
-                ProductNumber = nextProductNumber-1,
+                ProductNumber = nextProductNumber - 1,
                 SessionId = sessionId
             });
 

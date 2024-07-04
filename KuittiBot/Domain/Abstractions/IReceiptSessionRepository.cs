@@ -20,6 +20,7 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task SetSessionPayers(List<string> payers, int sessionId);
         Task SetSessionGroups(Dictionary<string, List<string>> groups, int sessionId);
         Task SaveReceiptAsync(Receipt receipt/*, ReceiptSessionEntity session*/);
+        //Task<Product> GetNextProductBySessionIdAsync(int sessionId);
         Task<Product> GetNextProductBySessionIdAsync(int sessionId);
         Task<bool> ProcessNextProductAndCheckIfDoneAsync(int sessionId);
         Task<bool> CheckIfProductAskedDoneAsync(int sessionId);
