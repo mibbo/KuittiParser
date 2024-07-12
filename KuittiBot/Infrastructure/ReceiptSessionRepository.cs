@@ -699,11 +699,6 @@ namespace KuittiBot.Functions.Infrastructure
                     await DeleteAllDataBySessionIdAsync(sessionId, connection, transaction);
                 }
 
-                // Delete data from the Users table
-                await connection.ExecuteAsync(
-                    @"DELETE FROM Users WHERE UserId = @UserId;",
-                    new { UserId = userId }, transaction: transaction);
-
                 transaction.Commit();
             }
             catch
