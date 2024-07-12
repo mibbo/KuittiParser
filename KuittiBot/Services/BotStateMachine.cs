@@ -148,6 +148,11 @@ namespace KuittiBot.Functions.Services
                 await _updateService.DeleteUserData(update);
             }
 
+            //if (update.Message.Text.ToLower().Contains("/deleteLast"))
+            //{
+            //    await _updateService.DeleteUserData(update);
+            //}
+
             if (update.Message.Text.ToLower().Contains("/nuke"))
             {
                 await _updateService.DeleteAllData(update);

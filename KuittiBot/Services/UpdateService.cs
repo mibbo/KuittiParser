@@ -696,19 +696,21 @@ namespace KuittiBot.Functions.Services
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: $"Sorry, sorry vaan. Eip onnaa.",
+                        text: $"Sorry, sorry vaan, ei onnaa.",
                         parseMode: ParseMode.Html);
                 }
             }
-
-            await _receiptSessionRepository.DeleteAllDataAsync();
-
-            if (!_isLocal)
+            else
             {
-                await _botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: $"All data deleted",
-                    parseMode: ParseMode.Html);
+                await _receiptSessionRepository.DeleteAllDataAsync();
+
+                if (!_isLocal)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: $"All data deleted",
+                        parseMode: ParseMode.Html);
+                }
             }
         }
 
