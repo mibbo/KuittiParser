@@ -679,7 +679,7 @@ namespace KuittiBot.Functions.Services
             {
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: $"All data linked to the user '{message.From.Username}' has been deleted.",,
+                    text: $"All data linked to the user '{message.From.Username}' has been deleted.",
                     parseMode: ParseMode.Html);
             }
         }
