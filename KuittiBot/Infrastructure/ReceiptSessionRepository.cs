@@ -663,7 +663,10 @@ namespace KuittiBot.Functions.Infrastructure
                 await connection.ExecuteAsync("DELETE FROM Products;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Payers;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Groups;", transaction: transaction);
-                await connection.ExecuteAsync("DELETE FROM Users;", transaction: transaction);
+                // Update users to set CurrentSession to NULL and CurrentState to 'WaitingForInput'
+                await connection.ExecuteAsync(
+                    @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput';",
+                    transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Receipts;", transaction: transaction);
 
                 transaction.Commit();
@@ -690,7 +693,7 @@ namespace KuittiBot.Functions.Infrastructure
 
                 // Update users to set CurrentSession to NULL
                 await connection.ExecuteAsync(
-                    @"UPDATE Users SET CurrentSession, CurrentState = 'WaitingForInput' = NULL WHERE UserId = @UserId;",
+                    @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput' = NULL WHERE UserId = @UserId;",
                     new { UserId = userId }, transaction: transaction);
 
                 // Delete data associated with each session ID
