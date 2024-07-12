@@ -690,7 +690,7 @@ namespace KuittiBot.Functions.Infrastructure
 
                 // Update users to set CurrentSession to NULL
                 await connection.ExecuteAsync(
-                    @"UPDATE Users SET CurrentSession = NULL WHERE UserId = @UserId;",
+                    @"UPDATE Users SET CurrentSession, CurrentState = 'WaitingForInput' = NULL WHERE UserId = @UserId;",
                     new { UserId = userId }, transaction: transaction);
 
                 // Delete data associated with each session ID
@@ -712,7 +712,7 @@ namespace KuittiBot.Functions.Infrastructure
         {
             // Update users to set CurrentSession to NULL for the given sessionId
             await connection.ExecuteAsync(
-                @"UPDATE Users SET CurrentSession = NULL WHERE CurrentSession = @SessionId;",
+                @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput' WHERE CurrentSession = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
 
             // Delete data from tables in reverse order of dependency
