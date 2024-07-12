@@ -118,7 +118,21 @@ namespace KuittiBot.Functions.Infrastructure
             }
             catch (Exception e)
             {
-                throw new Exception("Updating the success state in session cache table failed: " + e.Message, e);
+                throw new Exception("Updating the current sessionId in session table failed: " + e.Message, e);
+            }
+        }
+
+        public async Task SetNewCurrentStateForUserAsync(string userId, BotState state)
+        {
+            try
+            {
+                string query = "UPDATE Users SET CurrentState = @NewState WHERE UserId = @userId";
+                using var connection = new SqlConnection(_connectionString);
+                await connection.ExecuteAsync(query, new { NewState = state, UserId = userId });
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Updating the current state in session table failed: " + e.Message, e);
             }
         }
 

@@ -16,6 +16,7 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task<string> GetUserStateByIdAsync(string userId);
         Task<int> GetCurrentSessionByIdAsync(string userId);
         Task SetNewSessionForUserAsync(int sessionId, string userId);
+        Task SetNewCurrentStateForUserAsync(string userId, BotState state);
         Task<IList<UserDataEntity>> GetAllUsers();
         //Task DeleteAsync(string kohdetunnus);
     }

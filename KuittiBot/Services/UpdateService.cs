@@ -409,7 +409,9 @@ namespace KuittiBot.Functions.Services
 
                 await _botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: $"Doodih soisniinku kuitti parsettu! Sanoppas jottai nii voidaa mennä etiäppäi");
+                    text: $"Doodih soisniinku kuitti parsettu! Pistä vaa seuraavaa kuittii tulloo");
+
+                await _userDataRepository.SetNewCurrentStateForUserAsync(message.From.Id.ToString(), BotState.WaitingForInput)
             }
         }
 
