@@ -691,9 +691,9 @@ namespace KuittiBot.Functions.Infrastructure
                 var sessionIdsQuery = @"SELECT CurrentSession FROM Users WHERE UserId = @UserId;";
                 var sessionIds = await connection.QueryAsync<int>(sessionIdsQuery, new { UserId = userId }, transaction);
 
-                // Update users to set CurrentSession to NULL
+                // Update users to set CurrentSession to NULL and CurrentState to 'WaitingForInput'
                 await connection.ExecuteAsync(
-                    @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput' = NULL WHERE UserId = @UserId;",
+                    @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput' WHERE UserId = @UserId;",
                     new { UserId = userId }, transaction: transaction);
 
                 // Delete data associated with each session ID
