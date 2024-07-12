@@ -35,7 +35,7 @@ namespace KuittiBot.Functions.Services
             DocumentAnalysisClient client = new DocumentAnalysisClient(new Uri(_aiUrl), new AzureKeyCredential(_aiKey));
 
 
-            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_v6", stream);
+            AnalyzeDocumentOperation operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "Kuittibot_V7", stream);
 
             AnalyzeResult result = operation.Value;
 
@@ -75,7 +75,13 @@ namespace KuittiBot.Functions.Services
                             currentProduct.Discounts = ConvertToDecimalList(discountsRaw, "\n");
                         }
 
-                        if (currentProduct.Name.Contains("PANTTI") && !currentProductCostString.Contains('-'))
+                        if (productData.ContainsKey("NumberOfItems"))
+                        {
+                            var quantity = productData["NumberOfItems"].Content;
+                            currentProduct.Quantity = ParseNumber(quantity);
+                        }
+
+                        if (currentProduct.Name.ToLower().Contains("pantti") && !currentProductCostString.Contains('-'))
                         {
                             productDictionary[previousProduct.Id].Name = productDictionary[previousProduct.Id].Name + $" (sis. PANTTI {currentProduct.Cost})";
                             productDictionary[previousProduct.Id].Cost = currentProduct.Cost;
@@ -121,6 +127,16 @@ namespace KuittiBot.Functions.Services
             return receipt;
         }
 
+        static string ParseNumber(string input)
+        {
+            // Use regular expression to match the digits in the string
+            var match = Regex.Match(input, @"\d+");
+            if (match.Success)
+            {
+                return match.Value;
+            }
+            return string.Empty;
+        }
         static decimal ParseDecimalCost(string costString)
         {
             // Replace dot with comma if present

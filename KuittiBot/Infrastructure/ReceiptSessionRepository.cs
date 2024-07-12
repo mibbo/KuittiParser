@@ -246,8 +246,8 @@ namespace KuittiBot.Functions.Infrastructure
                 {
                     // Insert product and get ProductId
                     var productId = await connection.ExecuteScalarAsync<int>(
-                        "INSERT INTO Products (ProductNumber, Name, Cost) OUTPUT INSERTED.ProductId VALUES (@ProductNumber, @Name, @Cost);",
-                        new { ProductNumber = productNumber, product.Name, product.Cost },
+                        "INSERT INTO Products (ProductNumber, Name, Cost, Quantity) OUTPUT INSERTED.ProductId VALUES (@ProductNumber, @Name, @Cost);",
+                        new { ProductNumber = productNumber, product.Name, product.Cost, product.Quantity },
                         transaction);
                     productNumber++;
 

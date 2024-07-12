@@ -50,8 +50,7 @@ CREATE TABLE Receipts
 	SessionSuccessful BIT NOT NULL,
     ShopName NVARCHAR(100),
 	RawTotalCost DECIMAL(19,4),
-    GroupMode BIT NOT NULL,
-    
+    GroupMode BIT NOT NULL
 )
 CREATE INDEX IDX_Receipts_Hash ON Receipts(Hash);
 
@@ -77,7 +76,9 @@ CREATE TABLE Products
 	ProductId INT PRIMARY KEY IDENTITY,
     ProductNumber INT NOT NULL,
     Name NVARCHAR(50) NOT NULL,
-	Cost DECIMAL(19,4) NOT NULL
+	Cost DECIMAL(19,4) NOT NULL,
+    Quantity INT NOT NULL DEFAULT 1,
+    CostPerItem AS (CAST(Cost AS DECIMAL(19,4)) / NULLIF(Quantity, 0)) PERSISTED
 )
 
 CREATE TABLE ProductDiscounts (
