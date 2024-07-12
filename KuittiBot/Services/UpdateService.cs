@@ -72,10 +72,6 @@ namespace KuittiBot.Functions.Services
             receipt.SessionId = sessionId;
             receipt.SessionSuccessful = false;
 
-            // TODO remove
-            //await _receiptSessionCache.UpdateSessionSuccessState(currentSession.Hash, true);
-            //
-
             currentSession.SessionSuccessful = true;
             currentSession.ShopName = receipt.ShopName;
             currentSession.RawTotalCost = receipt.RawTotalCost;
@@ -85,6 +81,20 @@ namespace KuittiBot.Functions.Services
             await PrintReceiptToUser(update, receipt);
 
             await AskPayers(update);
+            
+            if (sessionId == -1)
+            {
+                await PrintReceiptToUser(update, receipt);
+
+                Console.WriteLine($"Kuitti on jo olemassa, mit‰s nyt tehd‰‰n?");
+                if (!_isLocal)
+                {
+                    await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"Maksajat:");
+                }
+            }
+
         }
 
         public async Task HandlePayersAndAskFirstProduct(Update update)
@@ -139,7 +149,7 @@ namespace KuittiBot.Functions.Services
         {
             Dictionary<string, List<string>> groups = new Dictionary<string, List<string>>();
 
-            payersRaw = "Atoli: tommi allu liisa, liha: maukka ville, kasvis: emma jasu";
+            //payersRaw = "Atoli: tommi allu liisa, liha: maukka ville, kasvis: emma jasu";
 
             if (!payersRaw.Contains(':') || !payersRaw.Contains(','))
             {

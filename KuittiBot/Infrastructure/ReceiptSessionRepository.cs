@@ -33,23 +33,26 @@ namespace KuittiBot.Functions.Infrastructure
             {
                 using var connection = new SqlConnection(_connectionString);
 
-                var sessionExistsQuery = "SELECT COUNT(1) FROM Receipts WHERE Hash = @Hash";
-                var sessionExists = await connection.ExecuteScalarAsync<int>(sessionExistsQuery, new { Hash = session.Hash }) > 0;
+                var sessionExistsQuery = "SELECT SessionId FROM Receipts WHERE Hash = @Hash";
+                //var sessionExists = await connection.ExecuteScalarAsync<int>(sessionExistsQuery, new { Hash = session.Hash }) > 0;
+                var sessionId = await connection.QuerySingleOrDefaultAsync<int>(sessionExistsQuery, new { Hash = session.Hash });
 
-                if (!sessionExists)
+                //if (!sessionExists)
+                if (sessionId != 0)
                 {
-                    string insertQuery = @"
+                    Console.WriteLine($"The same hash for the Session file '{session.FileName}' already exists in the storage with filename '{session.FileName}'");
+                    Console.WriteLine($"Deleting all data with the given SessionId '{sessionId}'");
+                    await DeleteAllDataBySessionIdAsync(sessionId);
+                    //return -1;
+                }
+
+                string insertQuery = @"
                         INSERT INTO Receipts (Hash, FileName, SessionSuccessful, GroupMode) 
                         VALUES (@Hash, @FileName, @SessionSuccessful, @GroupMode); 
                         SELECT CAST(SCOPE_IDENTITY() as int);";
-                    var sessionId = await connection.ExecuteScalarAsync<int>(insertQuery, session);
-                    return sessionId;
-                }
-                else
-                {
-                    Console.WriteLine($"The same hash for the Session file '{session.FileName}' already exists in the storage with filename '{session.FileName}'");
-                    return -1;
-                }
+                sessionId = await connection.ExecuteScalarAsync<int>(insertQuery, session);
+
+                return sessionId;
             }
             catch (Exception e)
             {
@@ -650,6 +653,71 @@ namespace KuittiBot.Functions.Infrastructure
                 await connection.ExecuteAsync("DELETE FROM Groups;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Users;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Receipts;", transaction: transaction);
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+        public async Task DeleteAllDataByUserIdAsync(string userId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                // Retrieve the current session ID for the given user
+                var sessionIdQuery = "SELECT CurrentSession FROM Users WHERE UserId = @UserId;";
+                var sessionId = await connection.QuerySingleOrDefaultAsync<int>(sessionIdQuery, new { UserId = userId }, transaction: transaction);
+
+                if (sessionId != default)
+                {
+                    // Delete data from tables in reverse order of dependency
+                    await connection.ExecuteAsync("DELETE FROM GroupPayers WHERE GroupId IN (SELECT GroupId FROM Groups WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM PayerProducts WHERE PayerId IN (SELECT PayerId FROM Payers WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM ReceiptProducts WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM ProductDiscounts WHERE ProductId IN (SELECT ProductId FROM Products WHERE ProductNumber IN (SELECT ProductNumber FROM Products WHERE SessionId = @SessionId));", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM Products WHERE ProductNumber IN (SELECT ProductNumber FROM Products WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM Payers WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM Groups WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM Users WHERE UserId = @UserId;", new { UserId = userId }, transaction: transaction);
+                    await connection.ExecuteAsync("DELETE FROM Receipts WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+        public async Task DeleteAllDataBySessionIdAsync(int sessionId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                // Delete data from tables in reverse order of dependency
+                await connection.ExecuteAsync("DELETE FROM GroupPayers WHERE GroupId IN (SELECT GroupId FROM Groups WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM PayerProducts WHERE PayerId IN (SELECT PayerId FROM Payers WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM ReceiptProducts WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM ProductDiscounts WHERE ProductId IN (SELECT ProductId FROM Products WHERE ProductNumber IN (SELECT ProductNumber FROM Products WHERE SessionId = @SessionId));", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Products WHERE ProductNumber IN (SELECT ProductNumber FROM Products WHERE SessionId = @SessionId);", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Payers WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Groups WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Users WHERE CurrentSession = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM Receipts WHERE SessionId = @SessionId;", new { SessionId = sessionId }, transaction: transaction);
 
                 transaction.Commit();
             }

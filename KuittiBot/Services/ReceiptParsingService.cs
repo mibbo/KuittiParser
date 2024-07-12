@@ -135,7 +135,7 @@ namespace KuittiBot.Functions.Services
             {
                 return match.Value;
             }
-            return string.Empty;
+            return "1";
         }
         static decimal ParseDecimalCost(string costString)
         {
