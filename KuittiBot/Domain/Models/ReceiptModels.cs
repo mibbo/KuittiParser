@@ -59,7 +59,7 @@ namespace KuittiBot.Functions.Domain.Models
         public string Id { get; set; }
         public int ProductId { get; set; }
         public string Name { get; set; }
-        public string Quantity { get; set; }
+        public int Quantity { get; set; }
         public decimal? DividedCost { get; set; }
         public List<decimal>? Discounts { get; set; }
         private decimal costField;

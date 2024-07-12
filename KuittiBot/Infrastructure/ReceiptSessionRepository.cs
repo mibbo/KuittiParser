@@ -51,9 +51,9 @@ namespace KuittiBot.Functions.Infrastructure
                     }
 
                     string insertQuery = @"
-                    INSERT INTO Receipts (Hash, FileName, SessionSuccessful, GroupMode) 
-                    VALUES (@Hash, @FileName, @SessionSuccessful, @GroupMode); 
-                    SELECT CAST(SCOPE_IDENTITY() as int);";
+                        INSERT INTO Receipts (Hash, FileName, SessionSuccessful, GroupMode) 
+                        VALUES (@Hash, @FileName, @SessionSuccessful, @GroupMode); 
+                        SELECT CAST(SCOPE_IDENTITY() as int);";
                     sessionId = await connection.ExecuteScalarAsync<int>(insertQuery, session, transaction: transaction);
 
                     transaction.Commit();
@@ -70,6 +70,7 @@ namespace KuittiBot.Functions.Infrastructure
                 throw new Exception("Transaction failed: " + e.Message, e);
             }
         }
+
 
         public async Task SetGroupModeForCurrentSession(int sessionId, bool groupMode)
         {
@@ -260,7 +261,7 @@ namespace KuittiBot.Functions.Infrastructure
                 {
                     // Insert product and get ProductId
                     var productId = await connection.ExecuteScalarAsync<int>(
-                        "INSERT INTO Products (ProductNumber, Name, Cost, Quantity) OUTPUT INSERTED.ProductId VALUES (@ProductNumber, @Name, @Cost);",
+                        "INSERT INTO Products (ProductNumber, Name, Cost, Quantity) OUTPUT INSERTED.ProductId VALUES (@ProductNumber, @Name, @Cost, @Quantity);",
                         new { ProductNumber = productNumber, product.Name, product.Cost, product.Quantity },
                         transaction);
                     productNumber++;
@@ -684,8 +685,13 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 // Get all session IDs for the user
-                var sessionIdsQuery = @"SELECT SessionId FROM Receipts WHERE SessionId IN (SELECT CurrentSession FROM Users WHERE UserId = @UserId);";
+                var sessionIdsQuery = @"SELECT CurrentSession FROM Users WHERE UserId = @UserId;";
                 var sessionIds = await connection.QueryAsync<int>(sessionIdsQuery, new { UserId = userId }, transaction);
+
+                // Update users to set CurrentSession to NULL
+                await connection.ExecuteAsync(
+                    @"UPDATE Users SET CurrentSession = NULL WHERE UserId = @UserId;",
+                    new { UserId = userId }, transaction: transaction);
 
                 // Delete data associated with each session ID
                 foreach (var sessionId in sessionIds)
@@ -709,6 +715,11 @@ namespace KuittiBot.Functions.Infrastructure
 
         private async Task DeleteAllDataBySessionIdAsync(int sessionId, SqlConnection connection, SqlTransaction transaction)
         {
+            // Update users to set CurrentSession to NULL for the given sessionId
+            await connection.ExecuteAsync(
+                @"UPDATE Users SET CurrentSession = NULL WHERE CurrentSession = @SessionId;",
+                new { SessionId = sessionId }, transaction: transaction);
+
             // Delete data from tables in reverse order of dependency
             await connection.ExecuteAsync(
                 @"DELETE FROM GroupPayers 
@@ -753,5 +764,6 @@ namespace KuittiBot.Functions.Infrastructure
           WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
         }
+
     }
 }

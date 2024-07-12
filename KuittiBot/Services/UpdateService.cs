@@ -636,7 +636,7 @@ namespace KuittiBot.Functions.Services
             //if (!(update.Message is { } message)) return;
 
             List<string> receiptItems = receipt.Products
-                .Select(x => $"{x.Name} - {x.Cost} {(x.Quantity != "1" ? string.Empty : x.Quantity + " KPL")}")
+                .Select(x => $"{x.Name} - {x.Cost} {(x.Quantity == 1 ? string.Empty : "(" + x.Quantity.ToString() + " KPL)")}")
                 .ToList();
             var str = receiptItems.Aggregate((a, x) => a + "\n" + x) + $"\n ------------------- \nYHTEENSÄ: {receipt.GetReceiptTotalCost()}";
             Console.WriteLine(str);

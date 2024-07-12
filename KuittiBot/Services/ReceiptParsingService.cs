@@ -80,6 +80,10 @@ namespace KuittiBot.Functions.Services
                             var quantity = productData["NumberOfItems"].Content;
                             currentProduct.Quantity = ParseNumber(quantity);
                         }
+                        else
+                        {
+                            currentProduct.Quantity = 1;
+                        }
 
                         if (currentProduct.Name.ToLower().Contains("pantti") && !currentProductCostString.Contains('-'))
                         {
@@ -127,16 +131,25 @@ namespace KuittiBot.Functions.Services
             return receipt;
         }
 
-        static string ParseNumber(string input)
+        static int ParseNumber(string input)
         {
-            // Use regular expression to match the digits in the string
-            var match = Regex.Match(input, @"\d+");
-            if (match.Success)
+            try
             {
-                return match.Value;
+                // Use regular expression to match the digits in the string
+                var match = Regex.Match(input, @"\d+");
+                if (match.Success)
+                {
+                    return int.Parse(match.Value);
+                }
+                return 1;
             }
-            return "1";
+            catch
+            {
+                return 1;
+            }
+
         }
+
         static decimal ParseDecimalCost(string costString)
         {
             // Replace dot with comma if present
