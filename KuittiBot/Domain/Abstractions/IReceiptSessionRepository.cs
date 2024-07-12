@@ -39,5 +39,6 @@ namespace KuittiBot.Functions.Domain.Abstractions
         Task<Dictionary<int, decimal>> GetCostsForPayerAsync(int payerId);
         Task CalculateCostsForEachPayerAsync(List<Payer> payers);
         Task DeleteAllDataAsync();
+        Task DeleteAllDataByUserIdAsync(string userId);
     }
 }

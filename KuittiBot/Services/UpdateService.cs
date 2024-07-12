@@ -667,13 +667,41 @@ namespace KuittiBot.Functions.Services
                 //    parseMode: ParseMode.Html);
             }
         }
+        
+        public async Task DeleteUserData(Update update)
+        {
+            var message = CheckMessageValidity(update);
+            //if (!(update.Message is { } message)) return;
+            var userId = message.From.Id.ToString();
+            await _receiptSessionRepository.DeleteAllDataByUserIdAsync(userId);
+
+            if (!_isLocal)
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"All data linked to the user '{message.From.Username}' has been deleted.",,
+                    parseMode: ParseMode.Html);
+            }
+        }
 
         public async Task DeleteAllData(Update update)
         {
             var message = CheckMessageValidity(update);
-            //if (!(update.Message is { } message)) return;
 
-            _receiptSessionRepository.DeleteAllDataAsync();
+            var userId = message.From.Id;
+
+            if (userId != 34155101)
+            {
+                if (!_isLocal)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: $"Sorry, sorry vaan. Eip onnaa.",
+                        parseMode: ParseMode.Html);
+                }
+            }
+
+            await _receiptSessionRepository.DeleteAllDataAsync();
 
             if (!_isLocal)
             {

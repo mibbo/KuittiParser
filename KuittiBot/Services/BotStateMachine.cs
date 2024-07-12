@@ -145,6 +145,11 @@ namespace KuittiBot.Functions.Services
 
             if (update.Message.Text.ToLower().Contains("/delete"))
             {
+                await _updateService.DeleteUserData(update);
+            }
+
+            if (update.Message.Text.ToLower().Contains("/nuke"))
+            {
                 await _updateService.DeleteAllData(update);
             }
 
