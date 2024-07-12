@@ -411,7 +411,7 @@ namespace KuittiBot.Functions.Services
                     chatId: message.Chat.Id,
                     text: $"Doodih soisniinku kuitti parsettu! Pistä vaa seuraavaa kuittii tulloo");
 
-                await _userDataRepository.SetNewCurrentStateForUserAsync(message.From.Id.ToString(), BotState.WaitingForInput)
+                await _userDataRepository.SetNewCurrentStateForUserAsync(message.From.Id.ToString(), BotState.WaitingForInput);
             }
         }
 
