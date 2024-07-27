@@ -38,6 +38,8 @@ IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL
 IF OBJECT_ID('dbo.Receipts', 'U') IS NOT NULL
     DROP TABLE dbo.Receipts;
 
+IF OBJECT_ID('dbo.UserReceipts', 'U') IS NOT NULL
+    DROP TABLE dbo.UserReceipts;
 
 
 CREATE TABLE Receipts
@@ -61,6 +63,14 @@ CREATE TABLE Users
     CurrentState NVARCHAR(50),
     CurrentSession INT,
     FOREIGN KEY (CurrentSession) REFERENCES Receipts(SessionId)
+)
+
+CREATE TABLE UserReceipts(
+    UserId NVARCHAR(50) NOT NULL,
+    SessionId INT NOT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId),
+    FOREIGN KEY (SessionId) REFERENCES Receipts(SessionId),
+    PRIMARY KEY (UserId, SessionId)
 )
 
 CREATE TABLE Payers

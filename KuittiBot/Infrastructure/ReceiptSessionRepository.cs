@@ -56,6 +56,11 @@ namespace KuittiBot.Functions.Infrastructure
                         SELECT CAST(SCOPE_IDENTITY() as int);";
                     sessionId = await connection.ExecuteScalarAsync<int>(insertQuery, session, transaction: transaction);
 
+                    string userReceiptInsertQuery = @"
+                        INSERT INTO UserReceipts (UserId, SessionId) VALUES (@UserId, @SessionId);";
+
+                    await connection.ExecuteAsync(userReceiptInsertQuery, new { UserId = session.UserId, SessionId = sessionId }, transaction: transaction);
+
                     transaction.Commit();
                     return sessionId;
                 }
@@ -667,8 +672,8 @@ namespace KuittiBot.Functions.Infrastructure
                 await connection.ExecuteAsync(
                     @"UPDATE Users SET CurrentSession = NULL, CurrentState = 'WaitingForInput';",
                     transaction: transaction);
+                await connection.ExecuteAsync("DELETE FROM UserReceipts;", transaction: transaction);
                 await connection.ExecuteAsync("DELETE FROM Receipts;", transaction: transaction);
-
                 transaction.Commit();
             }
             catch
@@ -688,8 +693,8 @@ namespace KuittiBot.Functions.Infrastructure
             try
             {
                 // Get all session IDs for the user
-                var sessionIdsQuery = @"SELECT CurrentSession FROM Users WHERE UserId = @UserId;";
-                var sessionIds = await connection.QueryAsync<int>(sessionIdsQuery, new { UserId = userId }, transaction);
+                var sessionIdsQuery = @"SELECT SessionId FROM UserReceipts WHERE UserId = @UserId;";
+                var sessionIds = (await connection.QueryAsync<int>(sessionIdsQuery, new { UserId = userId }, transaction)).ToList();
 
                 // Update users to set CurrentSession to NULL and CurrentState to 'WaitingForInput'
                 await connection.ExecuteAsync(
@@ -763,10 +768,14 @@ namespace KuittiBot.Functions.Infrastructure
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
+                @"DELETE FROM UserReceipts 
+                                  WHERE SessionId = @SessionId;",
+                new { SessionId = sessionId }, transaction: transaction);
+
+            await connection.ExecuteAsync(
                 @"DELETE FROM Receipts 
             WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
         }
-
     }
 }
