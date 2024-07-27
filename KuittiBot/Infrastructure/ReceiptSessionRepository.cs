@@ -703,8 +703,9 @@ namespace KuittiBot.Functions.Infrastructure
                 }
 
                 transaction.Commit();
+
             }
-            catch
+            catch (Exception e) 
             {
                 transaction.Rollback();
                 throw;
@@ -713,53 +714,57 @@ namespace KuittiBot.Functions.Infrastructure
 
         private async Task DeleteAllDataBySessionIdAsync(int sessionId, SqlConnection connection, SqlTransaction transaction)
         {
-            // Update users to set CurrentSession to NULL for the given sessionId
+            // Update users to set CurrentState to 'WaitingForInput' and CurrentSession to NULL for the given sessionId
             await connection.ExecuteAsync(
-                @"UPDATE Users SET CurrentState = 'WaitingForInput' WHERE CurrentSession = @SessionId;",
+                @"UPDATE Users 
+                      SET CurrentState = 'WaitingForInput', 
+                          CurrentSession = NULL 
+                      WHERE CurrentSession = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
 
             // Delete data from tables in reverse order of dependency
+
             await connection.ExecuteAsync(
                 @"DELETE FROM GroupPayers 
-          WHERE GroupId IN (SELECT GroupId FROM Groups WHERE SessionId = @SessionId);",
+            WHERE GroupId IN (SELECT GroupId FROM Groups WHERE SessionId = @SessionId);",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM PayerProducts 
-          WHERE PayerId IN (SELECT PayerId FROM Payers WHERE SessionId = @SessionId);",
+            WHERE PayerId IN (SELECT PayerId FROM Payers WHERE SessionId = @SessionId);",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM ReceiptProducts 
-          WHERE SessionId = @SessionId;",
+            WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM ProductDiscounts 
-          WHERE ProductId IN (SELECT ProductId FROM Products 
-                              WHERE ProductId IN (SELECT ProductId FROM ReceiptProducts 
-                                                  WHERE SessionId = @SessionId));",
+            WHERE ProductId IN (SELECT ProductId FROM Products 
+                                WHERE ProductId IN (SELECT ProductId FROM ReceiptProducts 
+                                                    WHERE SessionId = @SessionId));",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM Products 
-          WHERE ProductId IN (SELECT ProductId FROM ReceiptProducts 
-                              WHERE SessionId = @SessionId);",
+            WHERE ProductId IN (SELECT ProductId FROM ReceiptProducts 
+                                WHERE SessionId = @SessionId);",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM Payers 
-          WHERE SessionId = @SessionId;",
+            WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM Groups 
-          WHERE SessionId = @SessionId;",
+            WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
 
             await connection.ExecuteAsync(
                 @"DELETE FROM Receipts 
-          WHERE SessionId = @SessionId;",
+            WHERE SessionId = @SessionId;",
                 new { SessionId = sessionId }, transaction: transaction);
         }
 
